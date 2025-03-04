@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, FlatList, TouchableOpacity, Alert, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -8,11 +8,13 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppointments, Appointment } from '@/hooks/useAppointments';
 import { router } from 'expo-router';
+import Checkbox from 'expo-checkbox';
 
 export default function ListScreen() {
   const colorScheme = useColorScheme();
   const { appointments, deleteAppointment } = useAppointments();
   const [filter, setFilter] = useState<'all' | 'today' | 'upcoming'>('all');
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
   // Get today's date in YYYY-MM-DD format
   const today = new Date().toISOString().split('T')[0];
@@ -99,71 +101,142 @@ export default function ListScreen() {
     );
   };
 
+  // Toggle checkbox
+  const toggleCheckbox = (id: string) => {
+    setCheckedItems(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
   // Render appointment item
   const renderAppointmentItem = ({ item }: { item: Appointment }) => {
     const isToday = item.date === today;
-    const backgroundColor = colorScheme === 'dark' ? '#1c1c1e' : '#ffffff';
+    const isChecked = checkedItems[item.id] || false;
+    
+    // Use original color scheme
+    const cardBg = colorScheme === 'dark' ? '#1c1c1e' : '#ffffff';
+    const accentColor = Colors[colorScheme || 'light'].tint;
     
     return (
-      <TouchableOpacity
+      <View
         style={[
           styles.appointmentItem,
-          { backgroundColor }
+          { 
+            backgroundColor: cardBg,
+            borderLeftColor: isChecked ? '#78788c' : accentColor,
+            opacity: isChecked ? 0.7 : 1
+          }
         ]}
-        onPress={() => handleAppointmentPress(item)}
       >
-        <View style={styles.appointmentHeader}>
-          <ThemedText style={styles.appointmentTitle}>{item.title}</ThemedText>
-          <TouchableOpacity
-            onPress={() => handleDeleteAppointment(item.id, item.title)}
-            style={styles.deleteButton}
-          >
-            <IconSymbol name="trash" size={18} color={Colors[colorScheme || 'light'].tint} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity 
+          style={styles.checkboxContainer}
+          onPress={() => toggleCheckbox(item.id)}
+        >
+          <View style={[
+            styles.checkbox,
+            {
+              backgroundColor: isChecked ? accentColor : 'transparent',
+              borderColor: isChecked ? 'transparent' : accentColor
+            }
+          ]}>
+            {isChecked && (
+              <IconSymbol 
+                name="checkmark" 
+                size={14} 
+                color="#ffffff" 
+              />
+            )}
+          </View>
+        </TouchableOpacity>
         
-        <View style={styles.appointmentDetails}>
-          <View style={styles.detailRow}>
-            <IconSymbol name="calendar" size={16} color={Colors[colorScheme || 'light'].text} />
-            <ThemedText style={styles.detailText}>
-              {formatDate(item.date)} {isToday && <ThemedText style={styles.todayBadge}>(Today)</ThemedText>}
+        <TouchableOpacity 
+          style={styles.appointmentContent}
+          onPress={() => handleAppointmentPress(item)}
+        >
+          <View style={styles.appointmentHeader}>
+            <ThemedText 
+              style={[
+                styles.appointmentTitle,
+                isChecked && styles.checkedText
+              ]}
+            >
+              {item.title}
             </ThemedText>
           </View>
           
-          <View style={styles.detailRow}>
-            <IconSymbol name="clock" size={16} color={Colors[colorScheme || 'light'].text} />
-            <ThemedText style={styles.detailText}>{formatTime(item.startTime)}</ThemedText>
+          <View style={styles.appointmentDetails}>
+            <View style={styles.detailRow}>
+              <IconSymbol 
+                name="calendar" 
+                size={14} 
+                color={accentColor} 
+              />
+              <ThemedText 
+                style={[
+                  styles.detailText,
+                  isChecked && styles.checkedText
+                ]}
+              >
+                {formatDate(item.date)} {isToday && <ThemedText style={styles.todayBadge}>Today</ThemedText>}
+              </ThemedText>
+            </View>
+            
+            <View style={styles.detailRow}>
+              <IconSymbol 
+                name="clock" 
+                size={14} 
+                color={accentColor} 
+              />
+              <ThemedText 
+                style={[
+                  styles.detailText,
+                  isChecked && styles.checkedText
+                ]}
+              >
+                {formatTime(item.startTime)} • {formatDuration(item.duration)}
+              </ThemedText>
+            </View>
           </View>
-          
-          <View style={styles.detailRow}>
-            <IconSymbol name="hourglass" size={16} color={Colors[colorScheme || 'light'].text} />
-            <ThemedText style={styles.detailText}>{formatDuration(item.duration)}</ThemedText>
-          </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          onPress={() => handleDeleteAppointment(item.id, item.title)}
+          style={styles.deleteButton}
+        >
+          <IconSymbol 
+            name="trash" 
+            size={18} 
+            color={`${accentColor}80`} 
+          />
+        </TouchableOpacity>
+      </View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText style={styles.title}>Appointments</ThemedText>
-      </ThemedView>
-      
+    <SafeAreaView style={[
+      styles.container,
+      { backgroundColor: colorScheme === 'dark' ? '#121212' : '#f5f5f5' }
+    ]}>
       <View style={styles.filterContainer}>
         <TouchableOpacity
           style={[
             styles.filterButton,
             filter === 'all' && styles.activeFilterButton,
-            filter === 'all' && { backgroundColor: Colors[colorScheme || 'light'].tint }
+            filter === 'all' && { 
+              backgroundColor: `${Colors[colorScheme || 'light'].tint}20`,
+              borderColor: Colors[colorScheme || 'light'].tint
+            }
           ]}
           onPress={() => setFilter('all')}
         >
           <ThemedText
             style={[
               styles.filterText,
-              filter === 'all' && styles.activeFilterText,
-              filter === 'all' && { color: '#fff' }
+              filter === 'all' && { 
+                color: Colors[colorScheme || 'light'].tint
+              }
             ]}
           >
             All
@@ -174,15 +247,19 @@ export default function ListScreen() {
           style={[
             styles.filterButton,
             filter === 'today' && styles.activeFilterButton,
-            filter === 'today' && { backgroundColor: Colors[colorScheme || 'light'].tint }
+            filter === 'today' && { 
+              backgroundColor: `${Colors[colorScheme || 'light'].tint}20`,
+              borderColor: Colors[colorScheme || 'light'].tint
+            }
           ]}
           onPress={() => setFilter('today')}
         >
           <ThemedText
             style={[
               styles.filterText,
-              filter === 'today' && styles.activeFilterText,
-              filter === 'today' && { color: '#fff' }
+              filter === 'today' && { 
+                color: Colors[colorScheme || 'light'].tint
+              }
             ]}
           >
             Today
@@ -193,15 +270,19 @@ export default function ListScreen() {
           style={[
             styles.filterButton,
             filter === 'upcoming' && styles.activeFilterButton,
-            filter === 'upcoming' && { backgroundColor: Colors[colorScheme || 'light'].tint }
+            filter === 'upcoming' && { 
+              backgroundColor: `${Colors[colorScheme || 'light'].tint}20`,
+              borderColor: Colors[colorScheme || 'light'].tint
+            }
           ]}
           onPress={() => setFilter('upcoming')}
         >
           <ThemedText
             style={[
               styles.filterText,
-              filter === 'upcoming' && styles.activeFilterText,
-              filter === 'upcoming' && { color: '#fff' }
+              filter === 'upcoming' && { 
+                color: Colors[colorScheme || 'light'].tint
+              }
             ]}
           >
             Upcoming
@@ -215,13 +296,25 @@ export default function ListScreen() {
           renderItem={renderAppointmentItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <IconSymbol name="calendar.badge.exclamationmark" size={50} color={Colors[colorScheme || 'light'].text} />
-          <ThemedText style={styles.emptyText}>No appointments found</ThemedText>
+          <View style={styles.emptyIconContainer}>
+            <IconSymbol 
+              name="calendar.badge.exclamationmark" 
+              size={40} 
+              color={Colors[colorScheme || 'light'].tint} 
+            />
+          </View>
+          <ThemedText style={styles.emptyText}>No tasks found</ThemedText>
           <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: Colors[colorScheme || 'light'].tint }]}
+            style={[
+              styles.addButton,
+              { 
+                backgroundColor: Colors[colorScheme || 'light'].tint
+              }
+            ]}
             onPress={() => router.navigate("/(tabs)")}
           >
             <ThemedText style={styles.addButtonText}>Go to Calendar</ThemedText>
@@ -236,48 +329,59 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
   filterContainer: {
     flexDirection: 'row',
-    padding: 12,
-    justifyContent: 'space-around',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   filterButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
+    marginRight: 8,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   activeFilterButton: {
-    backgroundColor: '#007AFF',
+    borderWidth: 1,
   },
   filterText: {
     fontSize: 14,
-  },
-  activeFilterText: {
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   listContent: {
-    padding: 12,
+    padding: 16,
+    paddingTop: 8,
   },
   appointmentItem: {
-    borderRadius: 12,
-    padding: 16,
+    flexDirection: 'row',
     marginBottom: 12,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  checkboxContainer: {
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkbox: {
+    height: 20,
+    width: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  appointmentContent: {
+    flex: 1,
+    padding: 12,
   },
   appointmentHeader: {
     flexDirection: 'row',
@@ -286,28 +390,37 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   appointmentTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     flex: 1,
+    marginRight: 8,
+  },
+  checkedText: {
+    textDecorationLine: 'line-through',
+    opacity: 0.6,
   },
   deleteButton: {
-    padding: 4,
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   appointmentDetails: {
-    marginTop: 8,
+    marginTop: 4,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   detailText: {
-    marginLeft: 8,
     fontSize: 14,
+    marginLeft: 8,
+    opacity: 0.8,
   },
   todayBadge: {
-    color: '#FF3B30',
-    fontWeight: 'bold',
+    color: '#ff9500',
+    fontWeight: '600',
+    marginLeft: 4,
   },
   emptyContainer: {
     flex: 1,
@@ -315,21 +428,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    opacity: 0.9,
+  },
   emptyText: {
     fontSize: 18,
-    marginTop: 16,
     marginBottom: 24,
-    textAlign: 'center',
+    opacity: 0.7,
   },
   addButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 24,
-    backgroundColor: '#007AFF',
   },
   addButtonText: {
     color: 'white',
-    fontWeight: 'bold',
+    fontWeight: '600',
     fontSize: 16,
   },
 }); 
