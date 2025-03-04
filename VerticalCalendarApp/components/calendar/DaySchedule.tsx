@@ -1,21 +1,51 @@
-import React, { useRef, useEffect } from 'react';
-import { StyleSheet, ScrollView, View, TouchableOpacity, Animated } from 'react-native';
+import React, { useRef, useEffect, useState, forwardRef } from 'react';
+import { 
+  StyleSheet, 
+  ScrollView, 
+  View, 
+  TouchableOpacity, 
+  Animated,
+  Text,
+  GestureResponderEvent,
+  PanResponder,
+  Alert,
+} from 'react-native';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
-interface DayScheduleProps {
-  selectedDate: string;
-  onAddEvent?: (time: string) => void;
+interface Appointment {
+  id: string;
+  date: string;
+  startTime: string;
+  duration: number;
+  title: string;
 }
 
-const DaySchedule: React.FC<DayScheduleProps> = ({ selectedDate, onAddEvent }) => {
+interface DayScheduleProps {
+  selectedDate: string;
+  onAddEvent?: (time: string, duration: number) => void;
+  appointments?: Appointment[];
+  onEditAppointment?: (appointment: Appointment) => void;
+  onDeleteAppointment?: (appointmentId: string) => void;
+}
+
+const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, onAddEvent, appointments = [], onEditAppointment, onDeleteAppointment }, ref) => {
   const colorScheme = useColorScheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+  const currentTimeAnimValue = useRef(new Animated.Value(0)).current;
+  const [swipingAppointmentId, setSwipingAppointmentId] = useState<string | null>(null);
+  const swipeAnimValues = useRef<{[key: string]: Animated.Value}>({}).current;
   
-  // Show only business hours (8am-8pm) for a more compact view
-  const hours = Array.from({ length: 13 }, (_, i) => i + 8);
+  // Show full 24 hours
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const HOUR_HEIGHT = 60; // height in pixels for one hour
+  const TIME_COLUMN_WIDTH = 70;
+  
+  // Check if the selected date is today
+  const isToday = new Date().toISOString().split('T')[0] === selectedDate;
   
   useEffect(() => {
     // Fade in animation when component mounts or selectedDate changes
@@ -25,11 +55,92 @@ const DaySchedule: React.FC<DayScheduleProps> = ({ selectedDate, onAddEvent }) =
       useNativeDriver: true,
     }).start();
     
+    // Scroll to appropriate time based on selected date
+    const scrollToAppropriateTime = () => {
+      let yPosition = 0;
+      
+      if (isToday) {
+        // For today, scroll to current time minus 1 hour
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const scrollToHour = Math.max(0, currentHour - 1);
+        yPosition = scrollToHour * HOUR_HEIGHT + (currentMinute / 60) * HOUR_HEIGHT;
+      } else {
+        // For other days, scroll to 8 AM as a reasonable starting point
+        yPosition = 8 * HOUR_HEIGHT;
+      }
+      
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ y: yPosition, animated: true });
+        }
+      }, 500);
+    };
+    
+    scrollToAppropriateTime();
+    
+    // Start animation for current time indicator
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(currentTimeAnimValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(currentTimeAnimValue, {
+          toValue: 0.4,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+    
     return () => {
       // Reset animation when component unmounts
       fadeAnim.setValue(0);
     };
-  }, [selectedDate]);
+  }, [selectedDate, isToday]);
+
+  // Initialize swipe animation values for appointments
+  useEffect(() => {
+    // Create animation values for new appointments
+    appointments.forEach(appointment => {
+      if (!swipeAnimValues[appointment.id]) {
+        swipeAnimValues[appointment.id] = new Animated.Value(0);
+      }
+    });
+    
+    // Clean up animation values for deleted appointments
+    Object.keys(swipeAnimValues).forEach(id => {
+      if (!appointments.find(appointment => appointment.id === id)) {
+        delete swipeAnimValues[id];
+      }
+    });
+  }, [appointments]);
+
+  const handleTimeSlotPress = (hour: number, event: GestureResponderEvent) => {
+    if (onAddEvent) {
+      // Calculate exact minutes based on touch position
+      const yOffset = event.nativeEvent.locationY;
+      const minutesWithinHour = Math.floor((yOffset / HOUR_HEIGHT) * 60);
+      const totalMinutes = hour * 60 + minutesWithinHour;
+      
+      // Round to nearest 5 minutes for better UX
+      const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+      const finalHour = Math.floor(roundedMinutes / 60);
+      const finalMinute = roundedMinutes % 60;
+      
+      // Format time string
+      const timeString = `${selectedDate}T${finalHour.toString().padStart(2, '0')}:${finalMinute.toString().padStart(2, '0')}:00`;
+      
+      // Default duration: 1 hour
+      const duration = 60;
+      
+      // Only call the callback to show the modal
+      onAddEvent(timeString, duration);
+    }
+  };
   
   const formatHour = (hour: number) => {
     if (hour === 0) return '12 AM';
@@ -44,36 +155,224 @@ const DaySchedule: React.FC<DayScheduleProps> = ({ selectedDate, onAddEvent }) =
     const minutes = now.getMinutes();
     
     // Only show indicator during business hours
-    if (hours < 8 || hours > 20) return -1;
+    if (hours < 8 || hours >= 20) {
+      return -1000; // Position off-screen
+    }
     
-    // Adjust for our 8am start time
-    return (hours - 8) * 60 + minutes;
+    // Calculate position based on hours and minutes since start hour
+    return ((hours - 8) * 60) + ((minutes / 60) * 60);
   };
 
   // Position the current time indicator
   const timePosition = getCurrentTimePosition();
-  const indicatorTop = timePosition >= 0 ? (timePosition / 60) * 60 : -1; // 60px per hour
+  const indicatorTop = (timePosition / 60) * HOUR_HEIGHT;
 
-  // Check if the selected date is today
-  const isToday = new Date().toISOString().split('T')[0] === selectedDate;
+  // Format minutes to time string (e.g. 90 -> "1:30 AM")
+  const formatTimeFromMinutes = (minutes: number) => {
+    const hour = Math.floor(minutes / 60);
+    const minute = minutes % 60;
+    if (hour === 0) {
+      return `12:${minute.toString().padStart(2, '0')} AM`;
+    }
+    if (hour === 12) {
+      return `12:${minute.toString().padStart(2, '0')} PM`;
+    }
+    return hour < 12 
+      ? `${hour}:${minute.toString().padStart(2, '0')} AM` 
+      : `${hour - 12}:${minute.toString().padStart(2, '0')} PM`;
+  };
+
+  // Convert ISO time string to minutes from midnight
+  const timeStringToMinutes = (timeString: string): number => {
+    const date = new Date(timeString);
+    return date.getHours() * 60 + date.getMinutes();
+  };
+
+  const handleAppointmentPress = (appointment: Appointment) => {
+    if (onEditAppointment) {
+      onEditAppointment(appointment);
+    }
+  };
+
+  const SWIPE_THRESHOLD = 80; // Reduced threshold to make deletion easier
+
+  const createPanResponder = (appointment: Appointment) => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to horizontal movements that are more significant than vertical ones
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2 && Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderGrant: () => {
+        setSwipingAppointmentId(appointment.id);
+        // Reset any ongoing animations
+        swipeAnimValues[appointment.id].setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow right swipe (positive dx) with a maximum value
+        if (gestureState.dx > 0) {
+          // Apply some resistance as the swipe gets further
+          const resistance = gestureState.dx > 100 ? 0.5 : 1;
+          swipeAnimValues[appointment.id].setValue(gestureState.dx * resistance);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > SWIPE_THRESHOLD) {
+          // Show confirmation dialog before deleting
+          Alert.alert(
+            "Delete Appointment",
+            `Are you sure you want to delete "${appointment.title}"?`,
+            [
+              {
+                text: "Cancel",
+                onPress: () => {
+                  // Animate back to original position if user cancels
+                  Animated.spring(swipeAnimValues[appointment.id], {
+                    toValue: 0,
+                    friction: 6,
+                    tension: 80,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setSwipingAppointmentId(null);
+                  });
+                },
+                style: "cancel"
+              },
+              { 
+                text: "Delete", 
+                onPress: () => {
+                  // Swipe completed - animate off screen with acceleration
+                  Animated.timing(swipeAnimValues[appointment.id], {
+                    toValue: 500, // Move far to the right
+                    duration: 250, // Faster animation
+                    useNativeDriver: true,
+                  }).start(() => {
+                    // Delete the appointment
+                    if (onDeleteAppointment) {
+                      onDeleteAppointment(appointment.id);
+                    }
+                  });
+                },
+                style: "destructive"
+              }
+            ]
+          );
+        } else {
+          // Swipe not completed - animate back to original position with spring for bounce effect
+          Animated.spring(swipeAnimValues[appointment.id], {
+            toValue: 0,
+            friction: 6, // Higher friction for less oscillation
+            tension: 80, // Higher tension for faster return
+            useNativeDriver: true,
+          }).start(() => {
+            setSwipingAppointmentId(null);
+          });
+        }
+      },
+      onPanResponderTerminate: () => {
+        // If the gesture is terminated for any reason, reset position
+        Animated.spring(swipeAnimValues[appointment.id], {
+          toValue: 0,
+          friction: 6,
+          tension: 80,
+          useNativeDriver: true,
+        }).start(() => {
+          setSwipingAppointmentId(null);
+        });
+      }
+    });
+  };
+
+  const renderAppointments = () => {
+    return appointments.map((appointment) => {
+      const startMinutes = timeStringToMinutes(appointment.startTime);
+      const top = (startMinutes / 60) * HOUR_HEIGHT;
+      const height = (appointment.duration / 60) * HOUR_HEIGHT;
+      
+      // Only render if within business hours
+      if (startMinutes < 8 * 60 || startMinutes >= 20 * 60) {
+        return null;
+      }
+      
+      // Initialize animation value if needed
+      if (!swipeAnimValues[appointment.id]) {
+        swipeAnimValues[appointment.id] = new Animated.Value(0);
+      }
+      
+      // Create pan responder for this appointment
+      const panResponder = createPanResponder(appointment);
+      
+      return (
+        <Animated.View
+          key={appointment.id}
+          style={[
+            styles.appointment,
+            {
+              top,
+              height,
+              left: TIME_COLUMN_WIDTH + 10,
+              right: 10,
+              backgroundColor: Colors[colorScheme ?? 'light'].tint + '80', // Add transparency
+              transform: [{ translateX: swipeAnimValues[appointment.id] }],
+            },
+          ]}
+          {...panResponder.panHandlers}
+        >
+          <TouchableOpacity
+            style={styles.appointmentContent}
+            onPress={() => handleAppointmentPress(appointment)}
+            disabled={swipingAppointmentId === appointment.id}
+          >
+            <ThemedText style={styles.appointmentTitle}>
+              {appointment.title}
+            </ThemedText>
+            <ThemedText style={styles.appointmentTime}>
+              {formatTimeFromMinutes(startMinutes)} - {formatTimeFromMinutes(startMinutes + appointment.duration)}
+            </ThemedText>
+          </TouchableOpacity>
+        </Animated.View>
+      );
+    });
+  };
 
   return (
     <ThemedView style={styles.container}>
       <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {isToday && indicatorTop >= 0 && (
+        <ScrollView 
+          ref={(scrollRef) => {
+            // Handle both the forwardRef and the local ref
+            if (scrollRef) {
+              scrollViewRef.current = scrollRef;
+              // Handle the forwarded ref properly
+              if (typeof ref === 'function') {
+                ref(scrollRef);
+              } else if (ref) {
+                // For React.MutableRefObject
+                (ref as React.MutableRefObject<ScrollView | null>).current = scrollRef;
+              }
+            }
+          }}
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16} // Improve scroll performance
+        >
+          {selectedDate === new Date().toISOString().split('T')[0] && (
             <Animated.View 
               style={[
                 styles.currentTimeIndicator, 
-                { top: indicatorTop }
+                { top: timePosition }
               ]}
-            />
+            >
+              <View style={styles.currentTimeDot} />
+              <View style={styles.currentTimeLine} />
+            </Animated.View>
           )}
+          
           {hours.map((hour) => (
             <TouchableOpacity 
               key={hour} 
               style={styles.hourRow}
-              onPress={() => onAddEvent && onAddEvent(`${selectedDate}T${hour.toString().padStart(2, '0')}:00:00`)}
+              onPress={(e) => handleTimeSlotPress(hour, e)}
             >
               <ThemedView style={styles.timeColumn}>
                 <ThemedText type="small" style={styles.hourText}>
@@ -82,16 +381,20 @@ const DaySchedule: React.FC<DayScheduleProps> = ({ selectedDate, onAddEvent }) =
               </ThemedView>
               
               <ThemedView style={styles.eventColumn}>
-                <ThemedView style={styles.halfHourLine} />
-                {/* This is where events would be rendered */}
+                <View style={styles.halfHourLine} />
+                <View style={styles.quarterHourLine} />
+                <View style={styles.threeQuarterHourLine} />
               </ThemedView>
             </TouchableOpacity>
           ))}
+          
+          {/* Render appointments */}
+          {renderAppointments()}
         </ScrollView>
       </Animated.View>
     </ThemedView>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -125,17 +428,70 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 30,
+    height: 1,
     borderTopWidth: 1,
     borderTopColor: '#d6e2e0',
     borderStyle: 'dashed',
+  },
+  quarterHourLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 15,
+    height: 1,
+    borderTopWidth: 1,
+    borderTopColor: '#e8f0ef',
+    borderStyle: 'dotted',
+  },
+  threeQuarterHourLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 45,
+    height: 1,
+    borderTopWidth: 1,
+    borderTopColor: '#e8f0ef',
+    borderStyle: 'dotted',
   },
   currentTimeIndicator: {
     position: 'absolute',
     left: 70,
     right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  currentTimeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'red',
+    marginRight: 5,
+  },
+  currentTimeLine: {
+    flex: 1,
     height: 2,
-    backgroundColor: Colors.light.tint,
-    zIndex: 1000,
+    backgroundColor: 'red',
+  },
+  appointment: {
+    position: 'absolute',
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.light.tint,
+    borderRadius: 4,
+    padding: 8,
+    zIndex: 100,
+  },
+  appointmentContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  appointmentTitle: {
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  appointmentTime: {
+    fontSize: 12,
+    opacity: 0.8,
   },
 });
 

@@ -1,175 +1,211 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, FlatList, TouchableOpacity, Animated } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { StyleSheet, View, TouchableOpacity, Animated, Easing } from 'react-native';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 interface DayListProps {
-  selectedMonth: string; // Format: 'YYYY-MM-DD'
+  selectedMonth: string;
   onDayPress: (date: string) => void;
   selectedDate?: string;
 }
 
-interface DayItem {
-  date: string; // Format: 'YYYY-MM-DD'
-  day: number;
-  weekday: string;
-}
-
 const DayList: React.FC<DayListProps> = ({ selectedMonth, onDayPress, selectedDate }) => {
-  const [days, setDays] = useState<DayItem[]>([]);
   const colorScheme = useColorScheme();
-  const animatedValues = useRef<{[key: string]: Animated.Value}>({}).current;
-
-  useEffect(() => {
-    if (selectedMonth) {
-      const daysInMonth = generateDaysForMonth(selectedMonth);
-      setDays(daysInMonth);
+  const animatedValues = useRef<{ [key: string]: Animated.Value }>({}).current;
+  
+  // Generate days for the selected month
+  const getDaysInMonth = () => {
+    const [year, month] = selectedMonth.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const days = [];
+    
+    // Get the number of days in the month
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    
+    for (let i = 1; i <= lastDay; i++) {
+      const dayDate = new Date(date.getFullYear(), date.getMonth(), i);
+      const dateString = dayDate.toISOString().split('T')[0];
       
-      // Initialize animated values for each day
-      daysInMonth.forEach(day => {
-        if (!animatedValues[day.date]) {
-          animatedValues[day.date] = new Animated.Value(1);
+      // Initialize animation value for this date if it doesn't exist
+      if (!animatedValues[dateString]) {
+        animatedValues[dateString] = new Animated.Value(0);
+      }
+      
+      days.push({
+        date: dateString,
+        day: i,
+        dayOfWeek: dayDate.toLocaleDateString('en-US', { weekday: 'long' }),
+      });
+    }
+    
+    return days;
+  };
+  
+  // Animate the selected date
+  useEffect(() => {
+    if (selectedDate) {
+      // Reset all animations
+      Object.keys(animatedValues).forEach(date => {
+        if (date !== selectedDate) {
+          Animated.timing(animatedValues[date], {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.cubic)
+          }).start();
         }
       });
-    }
-  }, [selectedMonth]);
-
-  useEffect(() => {
-    if (selectedDate && animatedValues[selectedDate]) {
-      // Reset animation
-      animatedValues[selectedDate].setValue(1);
       
-      // Create pulse animation
-      Animated.sequence([
-        Animated.timing(animatedValues[selectedDate], {
-          toValue: 1.05,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(animatedValues[selectedDate], {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      // Ensure we have an animation value for the selected date
+      if (!animatedValues[selectedDate]) {
+        animatedValues[selectedDate] = new Animated.Value(0);
+      }
+      
+      // Animate the selected date
+      Animated.timing(animatedValues[selectedDate], {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.cubic)
+      }).start();
     }
   }, [selectedDate]);
-
-  const generateDaysForMonth = (dateString: string): DayItem[] => {
-    const [year, month] = dateString.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-    const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
-    
-    const daysArray: DayItem[] = [];
-    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    
-    for (let i = 1; i <= daysInMonth; i++) {
-      const currentDate = new Date(parseInt(year), parseInt(month) - 1, i);
-      const weekday = weekdays[currentDate.getDay()];
-      const formattedDate = `${year}-${month}-${i.toString().padStart(2, '0')}`;
-      
-      daysArray.push({
-        date: formattedDate,
-        day: i,
-        weekday,
-      });
-    }
-    
-    return daysArray;
+  
+  const days = getDaysInMonth();
+  
+  const isToday = (dateString: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    return dateString === today;
   };
-
-  const renderDayItem = ({ item }: { item: DayItem }) => {
-    const isSelected = selectedDate === item.date;
-    const isToday = new Date().toISOString().split('T')[0] === item.date;
-    const animatedStyle = {
-      transform: [{ scale: animatedValues[item.date] || new Animated.Value(1) }]
-    };
-    
-    return (
-      <Animated.View style={animatedStyle}>
-        <TouchableOpacity
-          style={[
-            styles.dayItem,
-            isSelected && { backgroundColor: Colors[colorScheme ?? 'light'].tint + '20' }
-          ]}
-          onPress={() => onDayPress(item.date)}
-        >
-          <ThemedView style={styles.dayContainer}>
-            <ThemedView 
+  
+  return (
+    <ThemedView style={styles.container}>
+      {days.map(({ date, day, dayOfWeek }) => {
+        const isSelected = date === selectedDate;
+        const dayIsToday = isToday(date);
+        
+        // Get animation value for this date, or create one if it doesn't exist
+        if (!animatedValues[date]) {
+          animatedValues[date] = new Animated.Value(0);
+        }
+        
+        // Calculate animated styles
+        const animatedScale = animatedValues[date].interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 1.03]
+        });
+        
+        const animatedOpacity = animatedValues[date].interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 1]
+        });
+        
+        return (
+          <TouchableOpacity
+            key={date}
+            style={styles.dayItem}
+            onPress={() => onDayPress(date)}
+          >
+            <Animated.View
               style={[
-                styles.dayNumber, 
-                isSelected && { backgroundColor: Colors[colorScheme ?? 'light'].tint }
+                styles.dayContent,
+                { transform: [{ scale: animatedScale }] }
               ]}
             >
-              <ThemedText 
-                type={isToday ? 'defaultBold' : 'default'}
+              <View style={styles.dayNumberContainer}>
+                <ThemedText
+                  style={[
+                    styles.dayNumber,
+                    dayIsToday && styles.todayText
+                  ]}
+                >
+                  {day}
+                </ThemedText>
+                {dayIsToday && <View style={styles.todayDot} />}
+              </View>
+              
+              <ThemedText
                 style={[
-                  styles.dayNumberText,
-                  isSelected && styles.selectedDayNumberText
+                  styles.dayName,
+                  dayIsToday && styles.todayText
                 ]}
               >
-                {item.day}
+                {dayOfWeek}
               </ThemedText>
-            </ThemedView>
-            <ThemedText 
-              type={isToday ? 'defaultItalic' : 'default'}
-              style={styles.weekday}
-            >
-              {item.weekday}
-            </ThemedText>
-          </ThemedView>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
-  return (
-    <FlatList
-      data={days}
-      renderItem={renderDayItem}
-      keyExtractor={(item) => item.date}
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.listContent}
-    />
+            </Animated.View>
+            
+            {isSelected && (
+              <Animated.View
+                style={[
+                  styles.selectedIndicator,
+                  {
+                    opacity: animatedOpacity,
+                    backgroundColor: Colors[colorScheme ?? 'light'].tint
+                  }
+                ]}
+              />
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </ThemedView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 10,
-  },
-  listContent: {
-    paddingBottom: 70, // Add padding for the bottom button
+    paddingVertical: 10,
   },
   dayItem: {
-    padding: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    marginVertical: 2,
     borderRadius: 10,
-    marginVertical: 5,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  dayContainer: {
+  dayContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 2,
+  },
+  dayNumberContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   dayNumber: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  dayNumberText: {
     fontSize: 18,
+    fontFamily: 'Merriweather_700Bold',
+    marginRight: 8,
   },
-  selectedDayNumberText: {
-    color: '#ffffff',
-  },
-  weekday: {
+  dayName: {
     fontSize: 16,
+    fontFamily: 'Merriweather_400Regular',
+  },
+  todayText: {
+    color: Colors.light.tint,
+  },
+  todayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.light.tint,
+    marginLeft: -4,
+    marginTop: -10,
+  },
+  selectedIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 2,
+    zIndex: 1,
   },
 });
 
