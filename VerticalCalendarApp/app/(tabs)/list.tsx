@@ -296,7 +296,13 @@ export default function ListScreen() {
           renderItem={renderAppointmentItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
+          scrollEnabled={true}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={false}
+          style={styles.flatList}
         />
       ) : (
         <View style={styles.emptyContainer}>
@@ -334,6 +340,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 16,
+    zIndex: 10,
   },
   filterButton: {
     paddingVertical: 8,
@@ -349,6 +356,10 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  flatList: {
+    flex: 1,
+    width: '100%',
   },
   listContent: {
     padding: 16,

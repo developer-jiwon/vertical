@@ -336,31 +336,49 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <Animated.View style={{ opacity: fadeAnim, flex: 1 }}>
-        <ScrollView 
-          ref={(scrollRef) => {
-            // Handle both the forwardRef and the local ref
-            if (scrollRef) {
-              scrollViewRef.current = scrollRef;
-              // Handle the forwarded ref properly
-              if (typeof ref === 'function') {
-                ref(scrollRef);
-              } else if (ref) {
-                // For React.MutableRefObject
-                (ref as React.MutableRefObject<ScrollView | null>).current = scrollRef;
-              }
-            }
-          }}
-          style={styles.scrollView} 
-          showsVerticalScrollIndicator={false}
-          scrollEventThrottle={16} // Improve scroll performance
-        >
-          {selectedDate === new Date().toISOString().split('T')[0] && (
-            <Animated.View 
+    <ScrollView
+      ref={ref || scrollViewRef}
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={true}
+      scrollEnabled={true}
+      nestedScrollEnabled={true}
+      bounces={true}
+      overScrollMode="auto"
+    >
+      <View style={styles.timelineContainer}>
+        {/* Time column */}
+        <View style={styles.timeColumn}>
+          {hours.map(hour => (
+            <View key={`hour-${hour}`} style={styles.hourCell}>
+              <ThemedText style={styles.hourText}>
+                {formatHour(hour)}
+              </ThemedText>
+            </View>
+          ))}
+        </View>
+        
+        {/* Schedule column */}
+        <View style={styles.scheduleColumn}>
+          {/* Hour grid lines */}
+          {hours.map(hour => (
+            <TouchableOpacity
+              key={`grid-${hour}`}
+              style={styles.hourGrid}
+              onPress={(e) => handleTimeSlotPress(hour, e)}
+            >
+              <View style={styles.hourGridLine} />
+            </TouchableOpacity>
+          ))}
+          
+          {/* Current time indicator */}
+          {isToday && (
+            <Animated.View
               style={[
-                styles.currentTimeIndicator, 
-                { top: timePosition }
+                styles.currentTimeIndicator,
+                {
+                  transform: [{ translateY: currentTimeAnimValue }]
+                }
               ]}
             >
               <View style={styles.currentTimeDot} />
@@ -368,44 +386,25 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
             </Animated.View>
           )}
           
-          {hours.map((hour) => (
-            <TouchableOpacity 
-              key={hour} 
-              style={styles.hourRow}
-              onPress={(e) => handleTimeSlotPress(hour, e)}
-            >
-              <ThemedView style={styles.timeColumn}>
-                <ThemedText type="small" style={styles.hourText}>
-                  {formatHour(hour)}
-                </ThemedText>
-              </ThemedView>
-              
-              <ThemedView style={styles.eventColumn}>
-                <View style={styles.halfHourLine} />
-                <View style={styles.quarterHourLine} />
-                <View style={styles.threeQuarterHourLine} />
-              </ThemedView>
-            </TouchableOpacity>
-          ))}
-          
           {/* Render appointments */}
           {renderAppointments()}
-        </ScrollView>
-      </Animated.View>
-    </ThemedView>
+        </View>
+      </View>
+    </ScrollView>
   );
 });
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
   },
-  scrollView: {
-    flex: 1,
+  contentContainer: {
+    minHeight: 60 * 24, // HOUR_HEIGHT * 24
+    paddingBottom: 60, // Add padding at the bottom for better scrolling
   },
-  hourRow: {
+  timelineContainer: {
     flexDirection: 'row',
-    height: 60,
   },
   timeColumn: {
     width: 70,
@@ -414,44 +413,26 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: 10,
   },
+  hourCell: {
+    height: 60,
+  },
   hourText: {
     opacity: 0.7,
   },
-  eventColumn: {
+  scheduleColumn: {
     flex: 1,
     borderTopWidth: 1,
     borderTopColor: '#c0d0ce',
     position: 'relative',
   },
-  halfHourLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 30,
-    height: 1,
+  hourGrid: {
+    height: 60,
+  },
+  hourGridLine: {
+    flex: 1,
     borderTopWidth: 1,
     borderTopColor: '#d6e2e0',
     borderStyle: 'dashed',
-  },
-  quarterHourLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 15,
-    height: 1,
-    borderTopWidth: 1,
-    borderTopColor: '#e8f0ef',
-    borderStyle: 'dotted',
-  },
-  threeQuarterHourLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 45,
-    height: 1,
-    borderTopWidth: 1,
-    borderTopColor: '#e8f0ef',
-    borderStyle: 'dotted',
   },
   currentTimeIndicator: {
     position: 'absolute',
