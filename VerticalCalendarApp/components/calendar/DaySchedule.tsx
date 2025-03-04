@@ -41,13 +41,58 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
   const swipeAnimValues = useRef<{[key: string]: Animated.Value}>({}).current;
   const [currentTimePosition, setCurrentTimePosition] = useState(0);
   
+  // Debug the selected date
+  console.log('DaySchedule selectedDate:', selectedDate);
+  
+  // Parse the date correctly to avoid timezone issues
+  const parseSelectedDate = (dateString: string) => {
+    // Create a date in UTC to avoid timezone issues
+    // Format: YYYY-MM-DD -> convert to UTC date object
+    return new Date(`${dateString}T12:00:00Z`);
+  };
+  
+  const parsedDate = parseSelectedDate(selectedDate);
+  console.log('DaySchedule parsed date:', parsedDate.toLocaleDateString(undefined, { 
+    weekday: 'long', 
+    month: 'long', 
+    day: 'numeric',
+    timeZone: 'UTC'  // Use UTC to avoid timezone shifts
+  }));
+  
   // Show full 24 hours
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const HOUR_HEIGHT = 60; // height in pixels for one hour
   const TIME_COLUMN_WIDTH = 70;
   
   // Check if the selected date is today
-  const isToday = new Date().toISOString().split('T')[0] === selectedDate;
+  const isToday = () => {
+    // Get today's date in YYYY-MM-DD format in the user's local timezone
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Compare with the selected date string directly
+    // This works because both are in YYYY-MM-DD format
+    return today === selectedDate;
+  };
+  
+  const isTodayValue = isToday();
+  console.log('Is today?', isTodayValue);
+  
+  // Add a specific effect to handle date changes
+  useEffect(() => {
+    // If it's not today, scroll to the top (12 AM)
+    if (!isTodayValue && scrollViewRef.current) {
+      console.log(`Date changed to ${selectedDate}, scrolling to top (12 AM)`);
+      // Use both immediate and delayed scrolling for reliability
+      scrollViewRef.current.scrollTo({ y: 0, animated: false });
+      
+      // Also try with a small delay
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ y: 0, animated: true });
+        }
+      }, 100);
+    }
+  }, [selectedDate, isTodayValue]);
   
   useEffect(() => {
     // Fade in animation when component mounts or selectedDate changes
@@ -61,7 +106,7 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
     const scrollToAppropriateTime = () => {
       let yPosition = 0;
       
-      if (isToday) {
+      if (isTodayValue) {
         // For today, scroll to current time minus 1 hour
         const now = new Date();
         const currentHour = now.getHours();
@@ -69,18 +114,32 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
         const scrollToHour = Math.max(0, currentHour - 1);
         yPosition = scrollToHour * HOUR_HEIGHT + (currentMinute / 60) * HOUR_HEIGHT;
       } else {
-        // For other days, scroll to 8 AM as a reasonable starting point
-        yPosition = 8 * HOUR_HEIGHT;
+        // For other days, scroll to 12 AM as requested
+        yPosition = 0; // 0 AM = 12 AM
       }
       
-      setTimeout(() => {
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({ y: yPosition, animated: true });
-        }
-      }, 500);
+      // Log for debugging
+      console.log(`Scrolling to position: ${yPosition}px for date: ${selectedDate}, isToday: ${isTodayValue}`);
+      
+      // Use a more reliable approach with both immediate and animated scrolling
+      if (scrollViewRef.current) {
+        // First scroll without animation to ensure position
+        scrollViewRef.current.scrollTo({ y: yPosition, animated: false });
+        
+        // Then scroll with animation for a smooth experience
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollTo({ y: yPosition, animated: true });
+          }
+        }, 50);
+      }
     };
     
+    // Call immediately and also with a small delay to ensure it works
     scrollToAppropriateTime();
+    
+    // Also set a timeout as a fallback
+    const timeoutId = setTimeout(scrollToAppropriateTime, 300);
     
     // Start animation for current time indicator
     Animated.loop(
@@ -101,8 +160,9 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
     return () => {
       // Reset animation when component unmounts
       fadeAnim.setValue(0);
+      clearTimeout(timeoutId);
     };
-  }, [selectedDate, isToday]);
+  }, [selectedDate, isTodayValue, HOUR_HEIGHT]);
 
   // Initialize swipe animation values for appointments
   useEffect(() => {
@@ -162,7 +222,7 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
 
   // Update the current time indicator position every minute
   useEffect(() => {
-    if (!isToday) return; // Only run for today
+    if (!isTodayValue) return; // Only run for today
     
     // Function to update the position
     const updateTimeIndicatorPosition = () => {
@@ -172,7 +232,11 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
       // Update the position using state
       setCurrentTimePosition(yPosition);
       
-      console.log(`Current time: ${new Date().toLocaleTimeString()}, Position: ${yPosition}px`);
+      // Log the current time and position for debugging
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      console.log(`Current time: ${hours}:${minutes.toString().padStart(2, '0')}, Position: ${yPosition}px`);
     };
     
     // Initial update
@@ -182,7 +246,7 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
     const interval = setInterval(updateTimeIndicatorPosition, 60000);
     
     return () => clearInterval(interval);
-  }, [isToday, HOUR_HEIGHT]);
+  }, [isTodayValue, HOUR_HEIGHT]);
 
   // Format minutes to time string (e.g. 90 -> "1:30 AM")
   const formatTimeFromMinutes = (minutes: number) => {
@@ -362,6 +426,7 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
       nestedScrollEnabled={true}
       bounces={true}
       overScrollMode="auto"
+      key={`day-schedule-${selectedDate}`}
     >
       <View style={styles.timelineContainer}>
         {/* Time column */}
@@ -389,7 +454,7 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
           ))}
           
           {/* Current time indicator */}
-          {isToday && (
+          {isTodayValue && (
             <Animated.View
               style={[
                 styles.currentTimeIndicator,

@@ -131,7 +131,12 @@ const MonthlyCalendar: React.FC<MonthlyCalendarProps> = ({
       <Calendar
         style={styles.calendar}
         theme={theme}
-        onDayPress={(day: DateData) => onDayPress(day.dateString)}
+        onDayPress={(day: DateData) => {
+          console.log('Calendar day pressed:', day);
+          console.log('Calendar dateString format:', day.dateString, '(YYYY-MM-DD)');
+          // The dateString is already in YYYY-MM-DD format which is timezone-safe
+          onDayPress(day.dateString);
+        }}
         onMonthChange={(month: DateData) => onMonthChange(month.dateString)}
         markedDates={markedDates}
         enableSwipeMonths={true}

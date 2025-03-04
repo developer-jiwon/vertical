@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, SafeAreaView, ScrollView, Dimensions, Alert, TextInput, Modal, Platform, KeyboardAvoidingView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -10,6 +10,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppointments, Appointment } from '@/hooks/useAppointments';
+import { useLocalSearchParams } from 'expo-router';
 
 // Define view types
 type ViewType = 'month' | 'dayList';
@@ -32,10 +33,23 @@ const padding = {
 };
 
 export default function HomeScreen() {
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedMonth, setSelectedMonth] = useState<string>(
-    new Date().toISOString().split('T')[0].substring(0, 7) + '-01'
+  const params = useLocalSearchParams();
+  const dateFromParams = typeof params.date === 'string' ? params.date : null;
+  
+  // Get today's date for default values
+  const today = new Date();
+  const todayISOString = today.toISOString().split('T')[0];
+  
+  // For testing purposes, force the current month to be March 2025
+  const currentMonth = '2025-03-01';
+  
+  const [selectedDate, setSelectedDate] = useState<string>(
+    dateFromParams || todayISOString
   );
+  
+  // Initialize selectedMonth with March 2025
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
+  
   const [currentView, setCurrentView] = useState<ViewType>('month');
   const [modalVisible, setModalVisible] = useState(false);
   const [newEventTime, setNewEventTime] = useState('');
@@ -51,8 +65,54 @@ export default function HomeScreen() {
   
   const { appointments, addAppointment, editAppointment, deleteAppointment } = useAppointments();
 
+  // Handle URL parameter changes
+  useEffect(() => {
+    if (dateFromParams) {
+      console.log('Date from URL params:', dateFromParams);
+      setSelectedDate(dateFromParams);
+      
+      // When coming from URL params (list view), update the selectedMonth
+      const [year, month] = dateFromParams.split('-');
+      const newSelectedMonth = `${year}-${month}-01`;
+      console.log('Setting selectedMonth from URL params:', newSelectedMonth);
+      setSelectedMonth(newSelectedMonth);
+    }
+  }, [dateFromParams]);
+
+  // Log selectedMonth changes
+  useEffect(() => {
+    console.log('selectedMonth changed to:', selectedMonth);
+  }, [selectedMonth]);
+
+  // Ensure we're showing the current month when the app starts
+  useEffect(() => {
+    // Initialize with the current month from selectedDate
+    if (selectedDate) {
+      const [year, month] = selectedDate.split('-');
+      const newSelectedMonth = `${year}-${month}-01`;
+      console.log('Initial render, setting selectedMonth from selectedDate:', newSelectedMonth);
+      
+      // Only update if different to avoid infinite loop
+      if (selectedMonth !== newSelectedMonth) {
+        setSelectedMonth(newSelectedMonth);
+      }
+    }
+  }, []);
+
+  // We no longer automatically update selectedMonth when selectedDate changes
+  // This allows the month view and list view to show different months
+  // The month is only updated when explicitly changing months or when coming from URL params
+
   const handleDayPress = (date: string) => {
+    console.log('Day pressed:', date);
     setSelectedDate(date);
+    
+    // Update selectedMonth to match the selected date
+    // This is needed when clicking on a day in the calendar view
+    const [year, month] = date.split('-');
+    const newSelectedMonth = `${year}-${month}-01`;
+    console.log('Setting selectedMonth from day press:', newSelectedMonth);
+    setSelectedMonth(newSelectedMonth);
   };
 
   const handleMonthChange = (month: string) => {
@@ -63,35 +123,138 @@ export default function HomeScreen() {
     setSelectedMonth(newSelectedMonth);
   };
 
+  // Navigate to the previous month
+  const goToPreviousMonth = () => {
+    console.log('goToPreviousMonth called, current selectedMonth:', selectedMonth);
+    
+    // Parse the current selected month
+    const [year, month] = selectedMonth.split('-').map(Number);
+    console.log('Parsed year:', year, 'month:', month);
+    
+    // Calculate the previous month
+    let prevMonth = month - 1;
+    let prevYear = year;
+    
+    // Handle year change if needed
+    if (prevMonth < 1) {
+      prevMonth = 12;
+      prevYear -= 1;
+    }
+    
+    // Format the new month string
+    const newSelectedMonth = `${prevYear}-${prevMonth.toString().padStart(2, '0')}-01`;
+    console.log('Going to previous month:', newSelectedMonth);
+    setSelectedMonth(newSelectedMonth);
+  };
+
+  // Navigate to the next month
+  const goToNextMonth = () => {
+    console.log('goToNextMonth called, current selectedMonth:', selectedMonth);
+    
+    // Parse the current selected month
+    const [year, month] = selectedMonth.split('-').map(Number);
+    console.log('Parsed year:', year, 'month:', month);
+    
+    // Calculate the next month
+    let nextMonth = month + 1;
+    let nextYear = year;
+    
+    // Handle year change if needed
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+    
+    // Format the new month string
+    const newSelectedMonth = `${nextYear}-${nextMonth.toString().padStart(2, '0')}-01`;
+    console.log('Going to next month:', newSelectedMonth);
+    setSelectedMonth(newSelectedMonth);
+  };
+
   const getToggleIcon = () => {
     return currentView === 'month' ? 'list.bullet' : 'calendar';
   };
 
   const handleToggle = () => {
-    setCurrentView(currentView === 'month' ? 'dayList' : 'month');
+    // Log the current state before toggling
+    console.log('Before toggle - currentView:', currentView);
+    console.log('Before toggle - selectedDate:', selectedDate);
+    console.log('Before toggle - selectedMonth:', selectedMonth);
+    
+    const newView = currentView === 'month' ? 'dayList' : 'month';
+    
+    // When toggling views, we don't need to change the selectedMonth
+    // This allows the month view and list view to show the same month
+    
+    console.log('After toggle - newView:', newView);
+    console.log('After toggle - selectedMonth remains:', selectedMonth);
+    
+    setCurrentView(newView);
   };
 
   const formatSelectedDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', { 
+    // For debugging
+    console.log('Formatting date:', dateString);
+    
+    // Create a date in UTC to avoid timezone issues
+    // Format: YYYY-MM-DD -> convert to UTC date object
+    const date = new Date(`${dateString}T12:00:00Z`);
+    console.log('UTC date object:', date.toISOString());
+    
+    // Format the date in the user's local timezone
+    return date.toLocaleDateString(undefined, { 
       weekday: 'long', 
       month: 'long', 
-      day: 'numeric' 
+      day: 'numeric',
+      timeZone: 'UTC'  // Use UTC to avoid timezone shifts
     });
   };
 
   const formatMonthYear = (dateString: string) => {
-    return new Date(dateString).toLocaleString('default', { 
-      month: 'long', 
-      year: 'numeric' 
-    });
+    console.log('formatMonthYear called with:', dateString);
+    
+    try {
+      // Parse the date string
+      const [year, month] = dateString.split('-').map(Number);
+      
+      // Create a new Date object with the 1st day of the month
+      const date = new Date(year, month - 1, 1); // month is 0-indexed in JS Date
+      
+      console.log('Parsed date:', date.toISOString());
+      
+      // Format the date to show month and year
+      const formatted = date.toLocaleString('default', { 
+        month: 'long', 
+        year: 'numeric' 
+      });
+      
+      console.log('Formatted month/year:', formatted);
+      return formatted;
+    } catch (error) {
+      console.error('Error formatting month/year:', error);
+      return dateString; // Return the original string if there's an error
+    }
   };
 
   const handleAddEvent = (time: string, duration: number) => {
+    console.log('handleAddEvent called with time:', time, 'duration:', duration);
+    console.log('Current selectedDate:', selectedDate);
+    
     // Store the event details for the modal
     setNewEventTime(time);
     
-    // Set start date from the selected time
-    const startDate = new Date(time);
+    // Parse the time string to get the hour and minute
+    const timeComponents = time.split('T')[1].split(':');
+    const hour = parseInt(timeComponents[0]);
+    const minute = parseInt(timeComponents[1]);
+    
+    // Create a new date object with the selected date and time
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    const startDate = new Date();
+    startDate.setFullYear(year, month - 1, day); // month is 0-indexed in JS Date
+    startDate.setHours(hour, minute, 0, 0);
+    
+    console.log('Created startDate with selected date:', startDate.toISOString());
     setNewEventStartDate(startDate);
     
     // Set end date by adding the duration
@@ -186,78 +349,48 @@ export default function HomeScreen() {
   };
 
   const handleSaveEvent = () => {
-    // Validate that title is not empty
     if (!newEventTitle.trim()) {
-      Alert.alert(
-        "Missing Title",
-        "Please enter a title for your appointment",
-        [{ text: "OK" }]
-      );
+      Alert.alert('Error', 'Please enter a title for the event');
       return;
     }
-    
-    // Calculate duration in minutes
+
     const duration = calculateDuration();
     
-    // Format the start time string
-    const year = newEventStartDate.getFullYear();
-    const month = (newEventStartDate.getMonth() + 1).toString().padStart(2, '0');
-    const day = newEventStartDate.getDate().toString().padStart(2, '0');
-    const hours = newEventStartDate.getHours().toString().padStart(2, '0');
-    const minutes = newEventStartDate.getMinutes().toString().padStart(2, '0');
+    // Use the selectedDate for the appointment date
+    const appointmentDate = selectedDate;
+    console.log('Saving appointment with date from selectedDate:', appointmentDate);
     
-    const startTimeString = `${year}-${month}-${day}T${hours}:${minutes}:00`;
+    // Format the start time string with the correct date
+    const startDate = new Date(newEventStartDate);
+    const [year, month, day] = appointmentDate.split('-').map(Number);
+    
+    // Set the date part of the start time to match the selected date
+    startDate.setFullYear(year, month - 1, day); // month is 0-indexed in JS Date
+    const startTime = startDate.toISOString().split('.')[0];
+    
+    console.log('Final startTime with correct date:', startTime);
+    
+    // DO NOT change the selectedMonth when saving an event
+    // This ensures the month stays the same in the list view
     
     if (isEditMode && editingAppointmentId) {
-      // Update existing appointment using the shared state
       editAppointment(editingAppointmentId, {
-        startTime: startTimeString,
-        duration: duration,
+        id: editingAppointmentId,
         title: newEventTitle,
+        startTime,
+        duration,
+        date: appointmentDate,
       });
-      
-      // Show confirmation to the user
-      Alert.alert(
-        'Appointment Updated',
-        `"${newEventTitle}" updated from ${formatTimeOnly(newEventStartDate)} to ${formatTimeOnly(newEventEndDate)}`,
-        [{ text: 'OK' }]
-      );
     } else {
-      // Create a new appointment using the shared state
-      const newAppointment: Appointment = {
+      addAppointment({
         id: Date.now().toString(),
-        date: selectedDate,
-        startTime: startTimeString,
-        duration: duration,
         title: newEventTitle,
-      };
-      
-      // Add to appointments list using the shared state
-      addAppointment(newAppointment);
-      
-      // Format the duration in a human-readable way
-      const durationHours = Math.floor(duration / 60);
-      const durationMinutes = duration % 60;
-      let durationText = '';
-      
-      if (durationHours > 0) {
-        durationText += `${durationHours} hour${durationHours > 1 ? 's' : ''}`;
-      }
-      
-      if (durationMinutes > 0) {
-        if (durationText) durationText += ' ';
-        durationText += `${durationMinutes} minute${durationMinutes > 1 ? 's' : ''}`;
-      }
-      
-      // Show confirmation to the user
-      Alert.alert(
-        'Appointment Created',
-        `"${newEventTitle}" added from ${formatTimeOnly(newEventStartDate)} to ${formatTimeOnly(newEventEndDate)} (${durationText})`,
-        [{ text: 'OK' }]
-      );
+        startTime,
+        duration,
+        date: appointmentDate,
+      });
     }
-    
-    // Close the modal
+
     setModalVisible(false);
   };
 
@@ -330,21 +463,45 @@ export default function HomeScreen() {
         ) : (
           <ThemedView style={styles.dayListContainer}>
             <ThemedView style={styles.dayListHeader}>
-              <View style={styles.spacer} />
-              <ThemedText type="subtitle" style={styles.monthTitle}>
-                {formatMonthYear(selectedMonth)}
-              </ThemedText>
               <TouchableOpacity 
-                style={styles.toggleButton}
-                onPress={handleToggle}
+                style={styles.monthNavButton}
+                onPress={goToPreviousMonth}
               >
                 <IconSymbol 
-                  size={20} 
-                  name={getToggleIcon()} 
+                  size={18} 
+                  name="chevron.left" 
                   color={Colors[colorScheme ?? 'light'].tint} 
                 />
               </TouchableOpacity>
+              <ThemedText type="subtitle" style={styles.monthTitle}>
+                {formatMonthYear(selectedMonth)}
+              </ThemedText>
+              <View style={styles.headerRightButtons}>
+                <TouchableOpacity 
+                  style={styles.monthNavButton}
+                  onPress={goToNextMonth}
+                >
+                  <IconSymbol 
+                    size={18} 
+                    name="chevron.right" 
+                    color={Colors[colorScheme ?? 'light'].tint} 
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.toggleButton}
+                  onPress={handleToggle}
+                >
+                  <IconSymbol 
+                    size={20} 
+                    name={getToggleIcon()} 
+                    color={Colors[colorScheme ?? 'light'].tint} 
+                  />
+                </TouchableOpacity>
+              </View>
             </ThemedView>
+            <ThemedText style={{display: 'none'}}>
+              {`Debug: selectedMonth=${selectedMonth}`}
+            </ThemedText>
             <DayList
               selectedMonth={selectedMonth}
               onDayPress={handleDayPress}
@@ -499,8 +656,10 @@ const styles = StyleSheet.create({
   monthTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'Merriweather_700Bold',
+    marginHorizontal: 10,
+    color: Colors.light.text,
   },
   dayScheduleContainer: {
     flex: 1,
@@ -637,5 +796,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: fontSize.button,
     fontFamily: 'Merriweather_700Bold',
+  },
+  monthNavButton: {
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: 'transparent',
+  },
+  headerRightButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
 });

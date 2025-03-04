@@ -17,9 +17,13 @@ const DayList: React.FC<DayListProps> = ({ selectedMonth, onDayPress, selectedDa
   const { appointments } = useAppointments();
   const animatedValues = useRef<{ [key: string]: Animated.Value }>({}).current;
   
+  // Debug the selected month
+  console.log('DayList rendering with selectedMonth:', selectedMonth);
+  
   // Generate days for the selected month
   const getDaysInMonth = () => {
     const [year, month] = selectedMonth.split('-');
+    console.log('Generating days for year:', year, 'month:', month);
     const date = new Date(parseInt(year), parseInt(month) - 1, 1);
     const days = [];
     

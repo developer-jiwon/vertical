@@ -76,7 +76,12 @@ export default function ListScreen() {
   // Handle appointment press - navigate to calendar view with the date
   const handleAppointmentPress = (appointment: Appointment) => {
     // Navigate to calendar tab with the appointment date
-    router.navigate("/(tabs)");
+    // This will trigger the useEffect in the HomeScreen component
+    // which will update the selectedMonth based on the selectedDate
+    router.navigate({
+      pathname: "/(tabs)",
+      params: { date: appointment.date }
+    });
   };
 
   // Handle delete appointment
