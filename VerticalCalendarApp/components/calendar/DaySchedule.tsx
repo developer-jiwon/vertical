@@ -9,6 +9,7 @@ import {
   GestureResponderEvent,
   PanResponder,
   Alert,
+  Easing,
 } from 'react-native';
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';
@@ -38,6 +39,7 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
   const currentTimeAnimValue = useRef(new Animated.Value(0)).current;
   const [swipingAppointmentId, setSwipingAppointmentId] = useState<string | null>(null);
   const swipeAnimValues = useRef<{[key: string]: Animated.Value}>({}).current;
+  const [currentTimePosition, setCurrentTimePosition] = useState(0);
   
   // Show full 24 hours
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -154,18 +156,33 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
     const hours = now.getHours();
     const minutes = now.getMinutes();
     
-    // Only show indicator during business hours
-    if (hours < 8 || hours >= 20) {
-      return -1000; // Position off-screen
-    }
-    
-    // Calculate position based on hours and minutes since start hour
-    return ((hours - 8) * 60) + ((minutes / 60) * 60);
+    // Calculate position based on hours and minutes
+    return (hours * 60) + minutes;
   };
 
-  // Position the current time indicator
-  const timePosition = getCurrentTimePosition();
-  const indicatorTop = (timePosition / 60) * HOUR_HEIGHT;
+  // Update the current time indicator position every minute
+  useEffect(() => {
+    if (!isToday) return; // Only run for today
+    
+    // Function to update the position
+    const updateTimeIndicatorPosition = () => {
+      const timePosition = getCurrentTimePosition();
+      const yPosition = (timePosition / 60) * HOUR_HEIGHT;
+      
+      // Update the position using state
+      setCurrentTimePosition(yPosition);
+      
+      console.log(`Current time: ${new Date().toLocaleTimeString()}, Position: ${yPosition}px`);
+    };
+    
+    // Initial update
+    updateTimeIndicatorPosition();
+    
+    // Update every minute
+    const interval = setInterval(updateTimeIndicatorPosition, 60000);
+    
+    return () => clearInterval(interval);
+  }, [isToday, HOUR_HEIGHT]);
 
   // Format minutes to time string (e.g. 90 -> "1:30 AM")
   const formatTimeFromMinutes = (minutes: number) => {
@@ -377,12 +394,13 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
               style={[
                 styles.currentTimeIndicator,
                 {
-                  transform: [{ translateY: currentTimeAnimValue }]
+                  top: currentTimePosition,
+                  transform: [] // Remove the transform that was using translateY
                 }
               ]}
             >
-              <View style={styles.currentTimeDot} />
-              <View style={styles.currentTimeLine} />
+              <View style={[styles.currentTimeDot, { backgroundColor: Colors[colorScheme || 'light'].tint }]} />
+              <View style={[styles.currentTimeLine, { backgroundColor: Colors[colorScheme || 'light'].tint }]} />
             </Animated.View>
           )}
           
@@ -446,13 +464,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'red',
     marginRight: 5,
   },
   currentTimeLine: {
     flex: 1,
     height: 2,
-    backgroundColor: 'red',
   },
   appointment: {
     position: 'absolute',
