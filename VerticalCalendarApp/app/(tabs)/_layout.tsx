@@ -1,5 +1,5 @@
-import { Tabs } from 'expo-router';
 import React from 'react';
+import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
@@ -15,22 +15,37 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
+        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
         tabBarStyle: Platform.select({
           ios: {
             // Use a transparent background on iOS to show the blur effect
             position: 'absolute',
+            backgroundColor: Colors[colorScheme ?? 'light'].background,
+            borderTopWidth: 1,
+            borderTopColor: '#e0e0e0',
           },
-          default: {},
+          default: {
+            backgroundColor: Colors[colorScheme ?? 'light'].background,
+            borderTopWidth: 1,
+            borderTopColor: '#e0e0e0',
+          },
         }),
+        headerShown: false,
+        tabBarButton: HapticTab,
+        tabBarBackground: TabBarBackground,
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Calendar',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol name="calendar" color={color} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="list"
+        options={{
+          title: 'List',
+          tabBarIcon: ({ color }) => <IconSymbol name="list.bullet" color={color} size={24} />,
         }}
       />
     </Tabs>

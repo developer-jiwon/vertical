@@ -9,6 +9,7 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAppointments, Appointment } from '@/hooks/useAppointments';
 
 // Define view types
 type ViewType = 'month' | 'dayList';
@@ -30,14 +31,6 @@ const padding = {
   button: isSmallScreen ? 10 : 12
 };
 
-interface Appointment {
-  id: string;
-  date: string;
-  startTime: string;
-  duration: number;
-  title: string;
-}
-
 export default function HomeScreen() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>(
@@ -51,11 +44,12 @@ export default function HomeScreen() {
   const [newEventTitle, setNewEventTitle] = useState('');
   const [timePickerMode, setTimePickerMode] = useState<'start' | 'end'>('start');
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const dayScheduleRef = useRef<ScrollView>(null);
   const colorScheme = useColorScheme();
+  
+  const { appointments, addAppointment, editAppointment, deleteAppointment } = useAppointments();
 
   const handleDayPress = (date: string) => {
     setSelectedDate(date);
@@ -215,19 +209,12 @@ export default function HomeScreen() {
     const startTimeString = `${year}-${month}-${day}T${hours}:${minutes}:00`;
     
     if (isEditMode && editingAppointmentId) {
-      // Update existing appointment
-      const updatedAppointments = appointments.map(appointment => 
-        appointment.id === editingAppointmentId 
-          ? {
-              ...appointment,
-              startTime: startTimeString,
-              duration: duration,
-              title: newEventTitle,
-            }
-          : appointment
-      );
-      
-      setAppointments(updatedAppointments);
+      // Update existing appointment using the shared state
+      editAppointment(editingAppointmentId, {
+        startTime: startTimeString,
+        duration: duration,
+        title: newEventTitle,
+      });
       
       // Show confirmation to the user
       Alert.alert(
@@ -236,7 +223,7 @@ export default function HomeScreen() {
         [{ text: 'OK' }]
       );
     } else {
-      // Create a new appointment
+      // Create a new appointment using the shared state
       const newAppointment: Appointment = {
         id: Date.now().toString(),
         date: selectedDate,
@@ -245,8 +232,8 @@ export default function HomeScreen() {
         title: newEventTitle,
       };
       
-      // Add to appointments list
-      setAppointments([...appointments, newAppointment]);
+      // Add to appointments list using the shared state
+      addAppointment(newAppointment);
       
       // Format the duration in a human-readable way
       const durationHours = Math.floor(duration / 60);
@@ -276,12 +263,8 @@ export default function HomeScreen() {
 
   const handleDeleteAppointment = () => {
     if (isEditMode && editingAppointmentId) {
-      // Filter out the appointment being edited
-      const updatedAppointments = appointments.filter(
-        appointment => appointment.id !== editingAppointmentId
-      );
-      
-      setAppointments(updatedAppointments);
+      // Delete the appointment using the shared state
+      deleteAppointment(editingAppointmentId);
       
       // Show confirmation to the user
       Alert.alert(

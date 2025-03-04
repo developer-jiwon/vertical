@@ -10,6 +10,7 @@ import { View } from 'react-native';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
+import { AppointmentsProvider } from '@/hooks/useAppointments';
 import {
   Merriweather_400Regular,
   Merriweather_700Bold,
@@ -75,17 +76,19 @@ function RootLayoutNav() {
   };
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? darkTheme : theme}>
-      <StatusBar style="auto" />
-      <Stack screenOptions={{ 
-        headerShown: false,
-        contentStyle: { 
-          backgroundColor: colorScheme === 'dark' ? Colors.dark.background : Colors.light.background 
-        }
-      }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-    </ThemeProvider>
+    <AppointmentsProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? darkTheme : theme}>
+        <StatusBar style="auto" />
+        <Stack screenOptions={{ 
+          headerShown: false,
+          contentStyle: { 
+            backgroundColor: colorScheme === 'dark' ? Colors.dark.background : Colors.light.background 
+          }
+        }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+      </ThemeProvider>
+    </AppointmentsProvider>
   );
 }
