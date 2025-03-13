@@ -16,8 +16,10 @@ export default function ListScreen() {
   const [filter, setFilter] = useState<'all' | 'today' | 'upcoming'>('all');
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
-  // Get today's date in YYYY-MM-DD format
-  const today = new Date().toISOString().split('T')[0];
+  // Get today's date in YYYY-MM-DD format in local timezone
+  // This will work correctly in any timezone, including Korea
+  const now = new Date();
+  const today = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
 
   // Filter appointments based on selected filter
   const filteredAppointments = appointments.filter(appointment => {
@@ -41,8 +43,17 @@ export default function ListScreen() {
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    // Parse the date string directly to avoid timezone issues
+    // Format: YYYY-MM-DD
+    const [year, month, day] = dateString.split('-').map(Number);
+    
+    // Create a date object with these values at noon to avoid timezone shifts
+    // This will work correctly in any timezone, including Korea
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    
+    // Format the date in the user's local timezone and locale
+    // This will automatically use the user's locale settings
+    return date.toLocaleDateString(undefined, {
       weekday: 'short',
       month: 'short',
       day: 'numeric'
@@ -51,8 +62,19 @@ export default function ListScreen() {
 
   // Format time for display
   const formatTime = (timeString: string) => {
-    const date = new Date(timeString);
-    return date.toLocaleTimeString('en-US', {
+    // Parse the time string directly without timezone conversion
+    // Format is: YYYY-MM-DDTHH:MM:SS
+    const [datePart, timePart] = timeString.split('T');
+    const [hours, minutes] = timePart.split(':').map(Number);
+    
+    // Create a date object with these values
+    // This will work correctly in any timezone, including Korea
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    
+    // Format the time in the user's local timezone and locale
+    // This will automatically use the user's locale settings
+    return date.toLocaleTimeString(undefined, {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true

@@ -46,17 +46,19 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
   
   // Parse the date correctly to avoid timezone issues
   const parseSelectedDate = (dateString: string) => {
-    // Create a date in UTC to avoid timezone issues
-    // Format: YYYY-MM-DD -> convert to UTC date object
-    return new Date(`${dateString}T12:00:00Z`);
+    // Parse the date string directly to avoid timezone issues
+    // Format: YYYY-MM-DD
+    const [year, month, day] = dateString.split('-').map(Number);
+    
+    // Create a date object with these values at noon to avoid timezone shifts
+    return new Date(year, month - 1, day, 12, 0, 0);
   };
   
   const parsedDate = parseSelectedDate(selectedDate);
   console.log('DaySchedule parsed date:', parsedDate.toLocaleDateString(undefined, { 
     weekday: 'long', 
     month: 'long', 
-    day: 'numeric',
-    timeZone: 'UTC'  // Use UTC to avoid timezone shifts
+    day: 'numeric'
   }));
   
   // Show full 24 hours
@@ -67,10 +69,10 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
   // Check if the selected date is today
   const isToday = () => {
     // Get today's date in YYYY-MM-DD format in the user's local timezone
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
     
     // Compare with the selected date string directly
-    // This works because both are in YYYY-MM-DD format
     return today === selectedDate;
   };
   
@@ -265,8 +267,13 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
 
   // Convert ISO time string to minutes from midnight
   const timeStringToMinutes = (timeString: string): number => {
-    const date = new Date(timeString);
-    return date.getHours() * 60 + date.getMinutes();
+    // Parse the time string directly without timezone conversion
+    // Format is: YYYY-MM-DDTHH:MM:SS
+    const [datePart, timePart] = timeString.split('T');
+    const [hours, minutes] = timePart.split(':').map(Number);
+    
+    // Calculate minutes from midnight
+    return hours * 60 + minutes;
   };
 
   const handleAppointmentPress = (appointment: Appointment) => {
@@ -370,11 +377,6 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
       const top = (startMinutes / 60) * HOUR_HEIGHT;
       const height = (appointment.duration / 60) * HOUR_HEIGHT;
       
-      // Only render if within business hours
-      if (startMinutes < 8 * 60 || startMinutes >= 20 * 60) {
-        return null;
-      }
-      
       // Initialize animation value if needed
       if (!swipeAnimValues[appointment.id]) {
         swipeAnimValues[appointment.id] = new Animated.Value(0);
@@ -442,14 +444,32 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
         
         {/* Schedule column */}
         <View style={styles.scheduleColumn}>
+          {/* First hour top border - make it more visible */}
+          <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            backgroundColor: 'rgba(0, 0, 0, 0.08)',
+            zIndex: 5
+          }} />
+          
           {/* Hour grid lines */}
           {hours.map(hour => (
             <TouchableOpacity
               key={`grid-${hour}`}
-              style={styles.hourGrid}
+              style={[
+                styles.hourGrid,
+                // Remove alternating background colors
+              ]}
               onPress={(e) => handleTimeSlotPress(hour, e)}
             >
+              {/* Main hour line at the bottom of each hour cell */}
               <View style={styles.hourGridLine} />
+              
+              {/* Half-hour line in the middle of each hour cell */}
+              <View style={styles.halfHourLine} />
             </TouchableOpacity>
           ))}
           
@@ -460,12 +480,13 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
                 styles.currentTimeIndicator,
                 {
                   top: currentTimePosition,
-                  transform: [] // Remove the transform that was using translateY
+                  transform: [],
+                  opacity: 1
                 }
               ]}
             >
-              <View style={[styles.currentTimeDot, { backgroundColor: Colors[colorScheme || 'light'].tint }]} />
-              <View style={[styles.currentTimeLine, { backgroundColor: Colors[colorScheme || 'light'].tint }]} />
+              <View style={styles.currentTimeDot} />
+              <View style={styles.currentTimeLine} />
             </Animated.View>
           )}
           
@@ -504,22 +525,42 @@ const styles = StyleSheet.create({
   },
   scheduleColumn: {
     flex: 1,
-    borderTopWidth: 1,
-    borderTopColor: '#c0d0ce',
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
     position: 'relative',
+    width: '100%',
+    marginRight: 10,
+    backgroundColor: 'transparent',
   },
   hourGrid: {
     height: 60,
+    width: '100%',
+    borderBottomWidth: 0,
+    position: 'relative',
+    backgroundColor: 'rgba(0, 0, 0, 0.02)', // Very subtle background
   },
   hourGridLine: {
-    flex: 1,
-    borderTopWidth: 1,
-    borderTopColor: '#d6e2e0',
-    borderStyle: 'dashed',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)', // Subtle dark line
+  },
+  halfHourLine: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.04)', // Even more subtle
+    opacity: 1,
+    borderTopWidth: 0,
+    borderStyle: 'solid',
   },
   currentTimeIndicator: {
     position: 'absolute',
-    left: 70,
+    left: 0,
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -530,10 +571,19 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     marginRight: 5,
+    marginLeft: -4,
+    backgroundColor: '#FF5722', // Modern orange
+    borderWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    elevation: 2,
   },
   currentTimeLine: {
     flex: 1,
-    height: 2,
+    height: 1,
+    backgroundColor: '#FF5722', // Modern orange
   },
   appointment: {
     position: 'absolute',
@@ -542,6 +592,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 8,
     zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   appointmentContent: {
     flex: 1,

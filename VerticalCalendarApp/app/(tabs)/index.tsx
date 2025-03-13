@@ -36,11 +36,13 @@ export default function HomeScreen() {
   const params = useLocalSearchParams();
   const dateFromParams = typeof params.date === 'string' ? params.date : null;
   
-  // Get today's date for default values
+  // Get today's date for default values - this will work in any timezone
   const today = new Date();
-  const todayISOString = today.toISOString().split('T')[0];
+  // Format as YYYY-MM-DD in local timezone (works in any timezone including Korea)
+  const todayISOString = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
   
   // For testing purposes, force the current month to be March 2025
+  // This is just a default value, the actual month will be based on the user's timezone
   const currentMonth = '2025-03-01';
   
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -196,17 +198,22 @@ export default function HomeScreen() {
     // For debugging
     console.log('Formatting date:', dateString);
     
-    // Create a date in UTC to avoid timezone issues
-    // Format: YYYY-MM-DD -> convert to UTC date object
-    const date = new Date(`${dateString}T12:00:00Z`);
-    console.log('UTC date object:', date.toISOString());
+    // Parse the date string directly to avoid timezone issues
+    // Format: YYYY-MM-DD
+    const [year, month, day] = dateString.split('-').map(Number);
+    
+    // Create a date object with these values at noon to avoid timezone shifts
+    // This will work correctly in any timezone, including Korea
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    
+    console.log('Parsed date object:', date.toString());
     
     // Format the date in the user's local timezone
+    // This will automatically use the user's locale and timezone settings
     return date.toLocaleDateString(undefined, { 
       weekday: 'long', 
       month: 'long', 
-      day: 'numeric',
-      timeZone: 'UTC'  // Use UTC to avoid timezone shifts
+      day: 'numeric'
     });
   };
 
@@ -217,13 +224,16 @@ export default function HomeScreen() {
       // Parse the date string
       const [year, month] = dateString.split('-').map(Number);
       
-      // Create a new Date object with the 1st day of the month
-      const date = new Date(year, month - 1, 1); // month is 0-indexed in JS Date
+      // Create a new Date object with the 1st day of the month at noon
+      // Using noon (12:00) helps avoid timezone-related date shifts
+      // This will work correctly in any timezone, including Korea
+      const date = new Date(year, month - 1, 1, 12, 0, 0);
       
-      console.log('Parsed date:', date.toISOString());
+      console.log('Parsed date:', date.toString());
       
-      // Format the date to show month and year
-      const formatted = date.toLocaleString('default', { 
+      // Format the date to show month and year in the user's locale
+      // This will automatically use the user's locale settings
+      const formatted = date.toLocaleString(undefined, { 
         month: 'long', 
         year: 'numeric' 
       });
@@ -248,13 +258,12 @@ export default function HomeScreen() {
     const hour = parseInt(timeComponents[0]);
     const minute = parseInt(timeComponents[1]);
     
-    // Create a new date object with the selected date and time
-    const [year, month, day] = selectedDate.split('-').map(Number);
+    // Create a new date object with the current time (not date)
+    // We only care about the time part here
     const startDate = new Date();
-    startDate.setFullYear(year, month - 1, day); // month is 0-indexed in JS Date
     startDate.setHours(hour, minute, 0, 0);
     
-    console.log('Created startDate with selected date:', startDate.toISOString());
+    console.log('Created startDate with time:', startDate.toLocaleTimeString());
     setNewEventStartDate(startDate);
     
     // Set end date by adding the duration
@@ -272,8 +281,14 @@ export default function HomeScreen() {
   };
 
   const handleEditAppointment = (appointment: Appointment) => {
-    // Set the appointment details in the modal
-    const startDate = new Date(appointment.startTime);
+    // Parse the time string directly without timezone conversion
+    // Format is: YYYY-MM-DDTHH:MM:SS
+    const [datePart, timePart] = appointment.startTime.split('T');
+    const [hours, minutes] = timePart.split(':').map(Number);
+    
+    // Create a date object with these values
+    const startDate = new Date();
+    startDate.setHours(hours, minutes, 0, 0);
     setNewEventStartDate(startDate);
     
     // Calculate end date based on duration
@@ -360,15 +375,17 @@ export default function HomeScreen() {
     const appointmentDate = selectedDate;
     console.log('Saving appointment with date from selectedDate:', appointmentDate);
     
-    // Format the start time string with the correct date
-    const startDate = new Date(newEventStartDate);
-    const [year, month, day] = appointmentDate.split('-').map(Number);
+    // Get hours and minutes from the newEventStartDate
+    // This will be in the user's local timezone (works in any timezone including Korea)
+    const hours = newEventStartDate.getHours();
+    const minutes = newEventStartDate.getMinutes();
     
-    // Set the date part of the start time to match the selected date
-    startDate.setFullYear(year, month - 1, day); // month is 0-indexed in JS Date
-    const startTime = startDate.toISOString().split('.')[0];
+    // Create a time string in local time (without timezone)
+    // Format: YYYY-MM-DDTHH:MM:SS
+    // This format preserves the exact local time regardless of timezone
+    const startTime = `${appointmentDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
     
-    console.log('Final startTime with correct date:', startTime);
+    console.log('Final startTime with correct date (local time):', startTime);
     
     // DO NOT change the selectedMonth when saving an event
     // This ensures the month stays the same in the list view
