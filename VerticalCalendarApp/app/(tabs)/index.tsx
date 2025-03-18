@@ -541,58 +541,55 @@ export default function HomeScreen() {
             style={styles.modalOverlay}
           >
             <ThemedView style={styles.modalContent}>
-              <ThemedText type="subtitle" style={styles.modalTitle}>
-                {isEditMode ? 'Edit Appointment' : 'Create New Appointment'}
+              <ThemedText style={styles.modalTitle}>
+                {isEditMode ? 'Edit' : 'New'} Appointment
               </ThemedText>
-              
-              <ThemedText style={styles.modalLabel}>Title</ThemedText>
               <TextInput
                 style={styles.modalInput}
                 value={newEventTitle}
                 onChangeText={setNewEventTitle}
-                placeholder="Enter appointment title"
-                placeholderTextColor="#999"
-                autoCorrect={false}
+                placeholder="Appointment title"
+                placeholderTextColor="#aaa"
                 maxLength={50}
+                multiline={false}
+                numberOfLines={1}
               />
               
               <View style={styles.timeSection}>
                 <View style={styles.timeColumn}>
-                  <ThemedText style={styles.modalLabel}>Start Time</ThemedText>
-                  <TouchableOpacity 
+                  <ThemedText style={styles.timeLabel}>Start</ThemedText>
+                  <TouchableOpacity
                     style={styles.timePickerButton}
                     onPress={showStartTimePicker}
                   >
-                    <ThemedText>{formatTimeOnly(newEventStartDate)}</ThemedText>
+                    <ThemedText style={styles.timeText}>
+                      {formatTimeOnly(newEventStartDate)}
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
-                
                 <View style={styles.timeColumn}>
-                  <ThemedText style={styles.modalLabel}>End Time</ThemedText>
-                  <TouchableOpacity 
+                  <ThemedText style={styles.timeLabel}>End</ThemedText>
+                  <TouchableOpacity
                     style={styles.timePickerButton}
                     onPress={showEndTimePicker}
                   >
-                    <ThemedText>{formatTimeOnly(newEventEndDate)}</ThemedText>
+                    <ThemedText style={styles.timeText}>
+                      {formatTimeOnly(newEventEndDate)}
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
               </View>
               
               {showTimePicker && Platform.OS === 'ios' && (
-                <View style={styles.pickerContainer}>
-                  <ThemedText style={styles.pickerTitle}>
-                    Select {timePickerMode === 'start' ? 'Start' : 'End'} Time
-                  </ThemedText>
-                  <DateTimePicker
-                    value={timePickerMode === 'start' ? newEventStartDate : newEventEndDate}
-                    mode="time"
-                    is24Hour={false}
-                    display="spinner"
-                    onChange={handleTimeChange}
-                    minuteInterval={30}
-                    style={styles.datePicker}
-                  />
-                </View>
+                <DateTimePicker
+                  value={timePickerMode === 'start' ? newEventStartDate : newEventEndDate}
+                  mode="time"
+                  is24Hour={false}
+                  display="spinner"
+                  onChange={handleTimeChange}
+                  minuteInterval={30}
+                  style={styles.datePicker}
+                />
               )}
               
               {showTimePicker && Platform.OS === 'android' && (
@@ -606,23 +603,19 @@ export default function HomeScreen() {
                 />
               )}
               
-              <ThemedText style={styles.durationText}>
-                Duration: {Math.floor(calculateDuration() / 60)}h {calculateDuration() % 60}m
-              </ThemedText>
-              
               <View style={styles.modalButtons}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={() => setModalVisible(false)}
                 >
-                  <ThemedText style={styles.buttonText}>Cancel</ThemedText>
+                  <ThemedText style={[styles.buttonText, { color: '#555' }]}>Cancel</ThemedText>
                 </TouchableOpacity>
                 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.modalButton, styles.saveButton]}
                   onPress={handleSaveEvent}
                 >
-                  <ThemedText style={styles.buttonText}>Save</ThemedText>
+                  <ThemedText style={[styles.buttonText, { color: '#fff' }]}>Save</ThemedText>
                 </TouchableOpacity>
               </View>
             </ThemedView>
@@ -731,95 +724,80 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: modalWidth,
-    maxHeight: height * 0.8,
+    maxHeight: height * 0.7,
     backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: padding.modal,
+    borderRadius: 16,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     elevation: 5,
   },
   modalTitle: {
-    fontSize: fontSize.title,
-    marginBottom: 15,
+    fontSize: 22,
+    marginBottom: 24,
     textAlign: 'center',
-    fontFamily: 'Merriweather_700Bold',
-  },
-  modalLabel: {
-    fontSize: fontSize.label,
-    marginTop: 15,
-    marginBottom: 5,
     fontFamily: 'Merriweather_700Bold',
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 5,
-    padding: 10,
-    fontSize: fontSize.input,
-    marginBottom: 5,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
     fontFamily: 'Merriweather_400Regular',
   },
   timeSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginBottom: 30,
   },
   timeColumn: {
     width: '48%',
   },
   timePickerButton: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 5,
-    padding: 10,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
     alignItems: 'center',
   },
-  pickerContainer: {
-    marginTop: 15,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
-    padding: 10,
-    maxHeight: height * 0.3,
+  timeLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  timeText: {
+    fontSize: 18,
+    color: '#000',
+    fontWeight: '500',
   },
   datePicker: {
-    height: isSmallScreen ? 150 : 200,
-  },
-  pickerTitle: {
-    textAlign: 'center',
-    marginBottom: 10,
-    fontFamily: 'Merriweather_700Bold',
-    fontSize: fontSize.label,
-  },
-  durationText: {
-    marginTop: 20,
-    textAlign: 'center',
-    fontSize: fontSize.input,
-    fontFamily: 'Merriweather_400Regular',
+    height: 180,
+    marginBottom: 20,
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
   },
   modalButton: {
-    padding: padding.button,
-    borderRadius: 5,
+    padding: 14,
+    borderRadius: 8,
     flex: 0.48,
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#ddd',
+    backgroundColor: '#f2f2f2',
   },
   saveButton: {
     backgroundColor: Colors.light.tint,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: fontSize.button,
-    fontFamily: 'Merriweather_700Bold',
+    fontSize: 16,
+    fontWeight: '600',
   },
   monthNavButton: {
     padding: 6,
