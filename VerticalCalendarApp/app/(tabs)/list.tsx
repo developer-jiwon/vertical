@@ -1,5 +1,16 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, Alert, Animated } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  StyleSheet, 
+  View, 
+  FlatList, 
+  TouchableOpacity, 
+  Alert, 
+  Animated,
+  SectionList,
+  Platform,
+  Vibration,
+  Easing
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -15,47 +26,138 @@ export default function ListScreen() {
   const { appointments, deleteAppointment } = useAppointments();
   const [filter, setFilter] = useState<'all' | 'today' | 'upcoming'>('all');
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const [completionPercentage, setCompletionPercentage] = useState(0);
+
+  // Animation values
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const secondRotateAnim = useRef(new Animated.Value(0)).current;
+  
+  // Start animations
+  useEffect(() => {
+    // Create and start rotation animations with clear start/stop management
+    const firstRotationAnim = Animated.timing(rotateAnim, {
+      toValue: 1,
+      duration: 6000, // Slightly faster
+      easing: Easing.linear,
+      useNativeDriver: true
+    });
+    
+    const secondRotationAnim = Animated.timing(secondRotateAnim, {
+      toValue: 1,
+      duration: 4000, // Slightly faster
+      easing: Easing.linear,
+      useNativeDriver: true
+    });
+    
+    // Clear looping function for continuous rotation
+    const loopFirstRotation = () => {
+      rotateAnim.setValue(0); // Reset to start
+      firstRotationAnim.start(loopFirstRotation); // Callback triggers next cycle
+    };
+    
+    const loopSecondRotation = () => {
+      secondRotateAnim.setValue(0); // Reset to start
+      secondRotationAnim.start(loopSecondRotation); // Callback triggers next cycle
+    };
+    
+    // Start the loops
+    firstRotationAnim.start(loopFirstRotation);
+    secondRotationAnim.start(loopSecondRotation);
+    
+    // Pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        })
+      ])
+    ).start();
+    
+    // Cleanup function
+    return () => {
+      firstRotationAnim.stop();
+      secondRotationAnim.stop();
+    };
+  }, []);
+  
+  // Calculate rotation interpolations
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+  
+  const secondRotate = secondRotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
 
   // Get today's date in YYYY-MM-DD format in local timezone
   // This will work correctly in any timezone, including Korea
   const now = new Date();
   const today = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
 
-  // Filter appointments based on selected filter
-  const filteredAppointments = appointments.filter(appointment => {
-    if (filter === 'all') return true;
-    if (filter === 'today') return appointment.date === today;
-    if (filter === 'upcoming') {
-      return appointment.date >= today;
-    }
-    return true;
-  });
+  // Calculate completion percentage
+  useEffect(() => {
+    const totalItems = appointments.length;
+    const completedItems = Object.values(checkedItems).filter(Boolean).length;
+    setCompletionPercentage((completedItems / totalItems) * 100 || 0);
+  }, [checkedItems, appointments]);
 
-  // Sort appointments by date and time
-  const sortedAppointments = [...filteredAppointments].sort((a, b) => {
-    // First sort by date
-    if (a.date !== b.date) {
-      return a.date.localeCompare(b.date);
-    }
-    // Then sort by time
-    return a.startTime.localeCompare(b.startTime);
-  });
+  // Filter and group appointments by date
+  const groupedAppointments = React.useMemo(() => {
+    const filtered = appointments.filter(appointment => {
+      if (filter === 'all') return true;
+      if (filter === 'today') return appointment.date === today;
+      if (filter === 'upcoming') return appointment.date >= today;
+      return true;
+    });
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    // Parse the date string directly to avoid timezone issues
-    // Format: YYYY-MM-DD
+    const groups: { [key: string]: Appointment[] } = {};
+    filtered.forEach(appointment => {
+      if (!groups[appointment.date]) {
+        groups[appointment.date] = [];
+      }
+      groups[appointment.date].push(appointment);
+    });
+
+    return Object.entries(groups)
+      .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+      .map(([date, data]) => ({
+        title: date,
+        data: data.sort((a, b) => a.startTime.localeCompare(b.startTime))
+      }));
+  }, [appointments, filter, today]);
+
+  // Format date for section headers
+  const formatSectionDate = (dateString: string) => {
     const [year, month, day] = dateString.split('-').map(Number);
-    
-    // Create a date object with these values at noon to avoid timezone shifts
-    // This will work correctly in any timezone, including Korea
     const date = new Date(year, month - 1, day, 12, 0, 0);
     
-    // Format the date in the user's local timezone and locale
-    // This will automatically use the user's locale settings
+    if (dateString === today) {
+      return 'Today';
+    }
+    
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    if (dateString === tomorrowStr) {
+      return 'Tomorrow';
+    }
+    
     return date.toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
+      weekday: 'long',
+      month: 'long',
       day: 'numeric'
     });
   };
@@ -128,34 +230,51 @@ export default function ListScreen() {
     );
   };
 
-  // Toggle checkbox
+  // Toggle checkbox with haptic feedback
   const toggleCheckbox = (id: string) => {
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate([0, 50]);
+    }
     setCheckedItems(prev => ({
       ...prev,
       [id]: !prev[id]
     }));
   };
 
+  // Render section header
+  const renderSectionHeader = ({ section }: { section: { title: string, data: Appointment[] } }) => {
+    const completedInSection = section.data.filter(item => checkedItems[item.id]).length;
+
+    return (
+      <View style={[
+        styles.sectionHeader,
+        { backgroundColor: colorScheme === 'dark' ? '#121212' : '#f8f9fa' }
+      ]}>
+        <View style={styles.sectionTitleContainer}>
+          <ThemedText style={styles.sectionTitle}>
+            {formatSectionDate(section.title)}
+          </ThemedText>
+          <ThemedText style={styles.sectionCount}>
+            {completedInSection}/{section.data.length}
+          </ThemedText>
+        </View>
+      </View>
+    );
+  };
+
   // Render appointment item
   const renderAppointmentItem = ({ item }: { item: Appointment }) => {
-    const isToday = item.date === today;
     const isChecked = checkedItems[item.id] || false;
-    
-    // Use original color scheme
-    const cardBg = colorScheme === 'dark' ? '#1c1c1e' : '#ffffff';
     const accentColor = Colors[colorScheme || 'light'].tint;
     
     return (
-      <View
-        style={[
-          styles.appointmentItem,
-          { 
-            backgroundColor: cardBg,
-            borderLeftColor: isChecked ? '#78788c' : accentColor,
-            opacity: isChecked ? 0.7 : 1
-          }
-        ]}
-      >
+      <Animated.View style={[
+        styles.appointmentItem,
+        { 
+          backgroundColor: colorScheme === 'dark' ? '#1c1c1e' : '#ffffff',
+          opacity: isChecked ? 0.7 : 1
+        }
+      ]}>
         <TouchableOpacity 
           style={styles.checkboxContainer}
           onPress={() => toggleCheckbox(item.id)}
@@ -168,11 +287,7 @@ export default function ListScreen() {
             }
           ]}>
             {isChecked && (
-              <IconSymbol 
-                name="checkmark" 
-                size={14} 
-                color="#ffffff" 
-              />
+              <IconSymbol name="checkmark" size={14} color="#ffffff" />
             )}
           </View>
         </TouchableOpacity>
@@ -182,163 +297,164 @@ export default function ListScreen() {
           onPress={() => handleAppointmentPress(item)}
         >
           <View style={styles.appointmentHeader}>
-            <ThemedText 
-              style={[
-                styles.appointmentTitle,
-                isChecked && styles.checkedText
-              ]}
-            >
+            <ThemedText style={[
+              styles.appointmentTitle,
+              isChecked && styles.checkedText
+            ]}>
               {item.title}
+            </ThemedText>
+            <ThemedText style={styles.timeText}>
+              {formatTime(item.startTime)}
             </ThemedText>
           </View>
           
           <View style={styles.appointmentDetails}>
             <View style={styles.detailRow}>
-              <IconSymbol 
-                name="calendar" 
-                size={14} 
-                color={accentColor} 
-              />
-              <ThemedText 
-                style={[
-                  styles.detailText,
-                  isChecked && styles.checkedText
-                ]}
-              >
-                {formatDate(item.date)} {isToday && <ThemedText style={styles.todayBadge}>Today</ThemedText>}
-              </ThemedText>
-            </View>
-            
-            <View style={styles.detailRow}>
-              <IconSymbol 
-                name="clock" 
-                size={14} 
-                color={accentColor} 
-              />
-              <ThemedText 
-                style={[
-                  styles.detailText,
-                  isChecked && styles.checkedText
-                ]}
-              >
-                {formatTime(item.startTime)} • {formatDuration(item.duration)}
+              <IconSymbol name="clock" size={14} color={accentColor} />
+              <ThemedText style={[
+                styles.detailText,
+                isChecked && styles.checkedText
+              ]}>
+                {formatDuration(item.duration)}
               </ThemedText>
             </View>
           </View>
         </TouchableOpacity>
         
         <TouchableOpacity
-          onPress={() => handleDeleteAppointment(item.id, item.title)}
           style={styles.deleteButton}
+          onPress={() => handleDeleteAppointment(item.id, item.title)}
         >
-          <IconSymbol 
-            name="trash" 
-            size={18} 
-            color={`${accentColor}80`} 
-          />
+          <IconSymbol name="trash" size={18} color={`${accentColor}80`} />
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     );
   };
 
   return (
-    <SafeAreaView style={[
-      styles.container,
-      { backgroundColor: colorScheme === 'dark' ? '#121212' : '#f5f5f5' }
-    ]}>
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            filter === 'all' && styles.activeFilterButton
-          ]}
-          onPress={() => setFilter('all')}
-        >
-          <ThemedText
-            style={[
-              styles.filterText,
-              filter === 'all' && { 
-                color: '#FFFFFF'
-              }
-            ]}
-          >
-            All
-          </ThemedText>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            filter === 'today' && styles.activeFilterButton
-          ]}
-          onPress={() => setFilter('today')}
-        >
-          <ThemedText
-            style={[
-              styles.filterText,
-              filter === 'today' && { 
-                color: '#FFFFFF'
-              }
-            ]}
-          >
-            Today
-          </ThemedText>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            filter === 'upcoming' && styles.activeFilterButton
-          ]}
-          onPress={() => setFilter('upcoming')}
-        >
-          <ThemedText
-            style={[
-              styles.filterText,
-              filter === 'upcoming' && { 
-                color: '#FFFFFF'
-              }
-            ]}
-          >
-            Upcoming
-          </ThemedText>
-        </TouchableOpacity>
+    <SafeAreaView 
+      style={[
+        styles.container,
+        { 
+          backgroundColor: colorScheme === 'dark' ? '#121212' : '#f8f9fa',
+          justifyContent: 'center'
+        }
+      ]}
+      edges={['top', 'bottom', 'left', 'right']}
+    >
+      <View style={styles.topSection}>
+        <View style={styles.progressCircleWrapper}>
+          {/* First Orbit - no dot */}
+          <Animated.View style={[
+            styles.firstOrbit,
+            { 
+              transform: [{ rotate }],
+              borderColor: 'rgba(46,93,75,0.12)'
+            }
+          ]}>
+            {/* No dots here */}
+          </Animated.View>
+          
+          {/* Second Orbit - no dot */}
+          <Animated.View style={[
+            styles.secondOrbit,
+            {
+              transform: [{ rotate: secondRotate }],
+              borderColor: 'rgba(46,93,75,0.08)'
+            }
+          ]}>
+            {/* No dots here */}
+          </Animated.View>
+          
+          {/* Main progress circle */}
+          <Animated.View style={[
+            styles.progressCircle,
+            { 
+              borderColor: Colors[colorScheme || 'light'].tint,
+              transform: [{ scale: pulseAnim }]
+            }
+          ]}>
+            <ThemedText style={styles.progressNumber}>
+              {Math.round(completionPercentage)}
+            </ThemedText>
+            <ThemedText style={styles.progressPercentSymbol}>%</ThemedText>
+            <ThemedText style={styles.progressLabel}>complete</ThemedText>
+          </Animated.View>
+        </View>
       </View>
       
-      {sortedAppointments.length > 0 ? (
-        <FlatList
-          data={sortedAppointments}
+      <View style={styles.filterContainer}>
+        {(['all', 'today', 'upcoming'] as const).map((type) => (
+          <TouchableOpacity
+            key={type}
+            style={[
+              styles.filterChip,
+              filter === type && styles.activeFilterChip,
+              { borderColor: Colors[colorScheme || 'light'].tint }
+            ]}
+            onPress={() => setFilter(type)}
+          >
+            <IconSymbol 
+              name={
+                type === 'all' ? 'list.bullet' :
+                type === 'today' ? 'sun.max' : 'calendar'
+              } 
+              size={12} 
+              color={filter === type ? Colors[colorScheme || 'light'].tint : '#666'}
+            />
+            <ThemedText style={[
+              styles.filterText,
+              filter === type && [
+                styles.activeFilterText,
+                { color: Colors[colorScheme || 'light'].tint }
+              ]
+            ]}>
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </ThemedText>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {groupedAppointments.length > 0 ? (
+        <SectionList
+          sections={groupedAppointments}
           renderItem={renderAppointmentItem}
+          renderSectionHeader={renderSectionHeader}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={true}
-          scrollEnabled={true}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={false}
-          style={styles.flatList}
+          stickySectionHeadersEnabled={true}
+          showsVerticalScrollIndicator={false}
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconContainer}>
+          <View style={[
+            styles.emptyIconContainer,
+            { backgroundColor: colorScheme === 'dark' ? '#1c1c1e' : '#ffffff' }
+          ]}>
             <IconSymbol 
-              name="calendar.badge.exclamationmark" 
-              size={40} 
-              color={Colors[colorScheme || 'light'].tint} 
+              name="sparkles" 
+              size={32}
+              color={Colors[colorScheme || 'light'].tint}
             />
           </View>
-          <ThemedText style={styles.emptyText}>No tasks found</ThemedText>
+          <ThemedText style={styles.emptyTitle}>All Clear!</ThemedText>
+          <ThemedText style={styles.emptyText}>
+            {filter === 'all' 
+              ? "Time to add some plans ✨"
+              : filter === 'today'
+                ? "Nothing planned for today 🌤"
+                : "Your schedule is open 🎉"
+            }
+          </ThemedText>
           <TouchableOpacity
             style={[
               styles.addButton,
-              { 
-                backgroundColor: Colors[colorScheme || 'light'].tint
-              }
+              { backgroundColor: Colors[colorScheme || 'light'].tint }
             ]}
             onPress={() => router.navigate("/(tabs)")}
           >
-            <ThemedText style={styles.addButtonText}>Go to Calendar</ThemedText>
+            <IconSymbol name="plus" size={18} color="#ffffff" />
+            <ThemedText style={styles.addButtonText}>New Plan</ThemedText>
           </TouchableOpacity>
         </View>
       )}
@@ -350,49 +466,144 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  topSection: {
+    flex: 0,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 25,
+    marginBottom: 30,
+    height: 180,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  progressCircleWrapper: {
+    width: 180,
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 0,
+  },
+  progressCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    zIndex: 2,
+  },
+  progressNumber: {
+    fontSize: 36,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 40,
+    includeFontPadding: false,
+  },
+  progressPercentSymbol: {
+    fontSize: 18,
+    fontWeight: '600',
+    opacity: 0.6,
+    textAlign: 'center',
+    marginTop: -4,
+  },
+  progressLabel: {
+    fontSize: 14,
+    opacity: 0.5,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  orbitingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    opacity: 0.6,
+  },
+  firstOrbit: {
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    borderWidth: 1,
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  secondOrbit: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 1,
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3,
+  },
   filterContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    zIndex: 10,
     justifyContent: 'center',
-    gap: 8,
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 10,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
-  filterButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.04)',
-    minWidth: 90,
+  filterChip: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    gap: 6,
   },
-  activeFilterButton: {
-    backgroundColor: Colors.light.tint,
+  activeFilterChip: {
+    backgroundColor: 'rgba(46,93,75,0.1)',
   },
   filterText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '500',
-    color: 'rgba(0, 0, 0, 0.6)',
+    opacity: 0.6,
   },
-  flatList: {
-    flex: 1,
-    width: '100%',
+  activeFilterText: {
+    opacity: 1,
+    fontWeight: '600',
+  },
+  sectionHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    opacity: 0.8,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  sectionCount: {
+    fontSize: 13,
+    opacity: 0.5,
+    fontWeight: '500',
   },
   listContent: {
-    padding: 16,
-    paddingTop: 8,
+    paddingBottom: 32,
   },
   appointmentItem: {
     flexDirection: 'row',
+    marginHorizontal: 20,
     marginBottom: 12,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    borderRadius: 16,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.1)',
   },
   checkboxContainer: {
     padding: 16,
@@ -400,22 +611,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkbox: {
-    height: 20,
-    width: 20,
-    borderRadius: 10,
+    height: 24,
+    width: 24,
+    borderRadius: 12,
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   appointmentContent: {
     flex: 1,
-    padding: 12,
+    padding: 14,
   },
   appointmentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   appointmentTitle: {
     fontSize: 16,
@@ -423,32 +634,33 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  timeText: {
+    fontSize: 13,
+    opacity: 0.5,
+    fontWeight: '500',
+  },
   checkedText: {
     textDecorationLine: 'line-through',
+    opacity: 0.4,
+  },
+  appointmentDetails: {
+    marginTop: 4,
     opacity: 0.6,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailText: {
+    fontSize: 13,
+    marginLeft: 6,
+    fontWeight: '500',
   },
   deleteButton: {
     padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  appointmentDetails: {
-    marginTop: 4,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  detailText: {
-    fontSize: 14,
-    marginLeft: 8,
-    opacity: 0.8,
-  },
-  todayBadge: {
-    color: '#ff9500',
-    fontWeight: '600',
-    marginLeft: 4,
+    opacity: 0.4,
   },
   emptyContainer: {
     flex: 1,
@@ -457,27 +669,38 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
-    opacity: 0.9,
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 15,
+    textAlign: 'center',
+    opacity: 0.6,
     marginBottom: 24,
-    opacity: 0.7,
+    fontWeight: '500',
   },
   addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     borderRadius: 24,
+    gap: 8,
   },
   addButtonText: {
     color: 'white',
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
   },
 }); 

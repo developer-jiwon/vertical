@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, SafeAreaView, ScrollView, Dimensions, Alert, TextInput, Modal, Platform, KeyboardAvoidingView, Animated, Vibration, Text } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ScrollView, Dimensions, Alert, TextInput, Modal, Platform, KeyboardAvoidingView, Animated, Vibration, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import MonthlyCalendar from '@/components/calendar/MonthlyCalendar';
@@ -11,6 +12,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppointments, Appointment } from '@/hooks/useAppointments';
 import { useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Define view types
 type ViewType = 'month' | 'dayList';
@@ -590,7 +592,10 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
+    <SafeAreaView 
+      style={[styles.safeArea, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
+      edges={['top', 'bottom', 'left', 'right']} // Include all edges for proper spacing
+    >
       <ThemedView style={styles.container}>
         {currentView === 'month' ? (
           <View style={styles.contentContainer}>
@@ -605,21 +610,30 @@ export default function HomeScreen() {
             {selectedDate && (
               <View style={styles.dayScheduleWrapper}>
                 <ThemedView style={styles.dayScheduleHeader}>
-                  <TouchableOpacity 
-                    style={styles.viewToggleButton}
-                    onPress={handleToggle}
-                  >
-                    <ThemedText style={styles.viewToggleText}>List</ThemedText>
-                    <IconSymbol 
-                      size={15} 
-                      name="list.bullet" 
-                      color={Colors.light.tint} 
-                    />
-                  </TouchableOpacity>
                   <ThemedText type="subtitle" style={styles.dateHeaderText}>
                     {formatSelectedDate(selectedDate)}
                   </ThemedText>
-                  <View style={styles.spacer} />
+                  <View style={styles.viewToggleContainer}>
+                    <TouchableOpacity 
+                      style={[styles.viewToggleOption, styles.viewToggleOptionLeft, currentView === ('month' as ViewType) && styles.viewToggleActive]}
+                    >
+                      <IconSymbol 
+                        size={14} 
+                        name="calendar" 
+                        color={currentView === ('month' as ViewType) ? "#FFFFFF" : "#777777"} 
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.viewToggleOption, styles.viewToggleOptionRight, currentView === ('dayList' as ViewType) && styles.viewToggleActive]}
+                      onPress={handleToggle}
+                    >
+                      <IconSymbol 
+                        size={14} 
+                        name="list.bullet" 
+                        color={currentView === ('dayList' as ViewType) ? "#FFFFFF" : "#777777"} 
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </ThemedView>
                 <ThemedView style={styles.dayScheduleContent}>
                   <DaySchedule
@@ -661,17 +675,27 @@ export default function HomeScreen() {
                     color="#555555" 
                   />
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.viewToggleButton}
-                  onPress={handleToggle}
-                >
-                  <ThemedText style={styles.viewToggleText}>Calendar</ThemedText>
-                  <IconSymbol 
-                    size={15} 
-                    name="calendar" 
-                    color={Colors.light.tint} 
-                  />
-                </TouchableOpacity>
+                <View style={styles.viewToggleContainer}>
+                  <TouchableOpacity 
+                    style={[styles.viewToggleOption, styles.viewToggleOptionLeft, currentView === ('month' as ViewType) && styles.viewToggleActive]}
+                    onPress={handleToggle}
+                  >
+                    <IconSymbol 
+                      size={14} 
+                      name="calendar" 
+                      color={currentView === ('month' as ViewType) ? "#FFFFFF" : "#777777"} 
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.viewToggleOption, styles.viewToggleOptionRight, currentView === ('dayList' as ViewType) && styles.viewToggleActive]}
+                  >
+                    <IconSymbol 
+                      size={14} 
+                      name="list.bullet" 
+                      color={currentView === ('dayList' as ViewType) ? "#FFFFFF" : "#777777"} 
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
             </ThemedView>
             <DayList
@@ -887,6 +911,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    paddingTop: 0, // Remove the extra padding now that we have proper safe area
   },
   container: {
     flex: 1,
@@ -949,9 +974,10 @@ const styles = StyleSheet.create({
   },
   dateHeaderText: {
     flex: 1,
-    textAlign: 'center',
+    textAlign: 'left',
     fontSize: 18,
     fontFamily: 'Merriweather_700Bold',
+    paddingLeft: 8,
   },
   spacer: {
     width: 80, // Match the width of the toggle button for centering
@@ -1189,19 +1215,31 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.light.tint,
     borderBottomWidth: 2,
   },
-  viewToggleButton: {
+  viewToggleContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: '#EDEDED',
     borderRadius: 16,
-    marginRight: 8,
+    padding: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  viewToggleText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.light.tint,
-    marginRight: 4,
+  viewToggleOption: {
+    width: 30,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 13,
+  },
+  viewToggleOptionLeft: {
+    marginRight: 2,
+  },
+  viewToggleOptionRight: {
+    marginLeft: 2,
+  },
+  viewToggleActive: {
+    backgroundColor: Colors.light.tint,
   },
 });

@@ -2,11 +2,11 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import 'react-native-reanimated';
-import { View } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
@@ -16,6 +16,11 @@ import {
   Merriweather_700Bold,
   Merriweather_400Regular_Italic,
 } from '@expo-google-fonts/merriweather';
+
+// Prevent the splash screen from auto-hiding
+SplashScreen.preventAutoHideAsync().catch(() => {
+  /* reloading the app might trigger some race conditions, ignore them */
+});
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -27,11 +32,8 @@ export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
     Merriweather_400Regular,
@@ -39,22 +41,26 @@ export default function RootLayout() {
     Merriweather_400Regular_Italic,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
-  useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+  const onLayoutRootView = useCallback(async () => {
+    if (fontsLoaded || fontError) {
+      // This tells the splash screen to hide immediately
+      await SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [fontsLoaded, fontError]);
 
-  if (!loaded) {
+  useEffect(() => {
+    onLayoutRootView();
+  }, [onLayoutRootView]);
+
+  if (!fontsLoaded && !fontError) {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AppointmentsProvider>
+      <RootLayoutNav />
+    </AppointmentsProvider>
+  );
 }
 
 function RootLayoutNav() {
@@ -76,19 +82,17 @@ function RootLayoutNav() {
   };
 
   return (
-    <AppointmentsProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? darkTheme : theme}>
-        <StatusBar style="auto" />
-        <Stack screenOptions={{ 
-          headerShown: false,
-          contentStyle: { 
-            backgroundColor: colorScheme === 'dark' ? Colors.dark.background : Colors.light.background 
-          }
-        }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-      </ThemeProvider>
-    </AppointmentsProvider>
+    <ThemeProvider value={colorScheme === 'dark' ? darkTheme : theme}>
+      <StatusBar style="auto" />
+      <Stack screenOptions={{ 
+        headerShown: false,
+        contentStyle: { 
+          backgroundColor: colorScheme === 'dark' ? Colors.dark.background : Colors.light.background 
+        }
+      }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="+not-found" />
+      </Stack>
+    </ThemeProvider>
   );
 }

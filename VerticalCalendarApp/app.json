@@ -9,18 +9,19 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#D6E2E0"
+      "backgroundColor": "#f8f9fa",
+      "resizeMode": "contain"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vertical.calendar"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#D6E2E0"
-      }
+      },
+      "package": "com.vertical.calendar"
     },
     "web": {
       "bundler": "metro",
@@ -29,19 +30,25 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#D6E2E0"
-        }
-      ],
       "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_ERROR_RECOVERY"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "vertical-calendar"
+      }
+    },
+    "developmentClient": {
+      "silentLaunch": true
     }
   }
 }
