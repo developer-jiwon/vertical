@@ -587,7 +587,7 @@ export default function HomeScreen() {
                     is24Hour={false}
                     display="spinner"
                     onChange={handleTimeChange}
-                    minuteInterval={5}
+                    minuteInterval={30}
                     style={styles.datePicker}
                   />
                 </View>
@@ -600,7 +600,7 @@ export default function HomeScreen() {
                   is24Hour={false}
                   display="default"
                   onChange={handleTimeChange}
-                  minuteInterval={5}
+                  minuteInterval={30}
                 />
               )}
               

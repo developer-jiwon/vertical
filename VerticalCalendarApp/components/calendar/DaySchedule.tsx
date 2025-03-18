@@ -190,8 +190,8 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
       const minutesWithinHour = Math.floor((yOffset / HOUR_HEIGHT) * 60);
       const totalMinutes = hour * 60 + minutesWithinHour;
       
-      // Round to nearest 5 minutes for better UX
-      const roundedMinutes = Math.round(totalMinutes / 5) * 5;
+      // Round to nearest 30 minutes for better UX
+      const roundedMinutes = Math.round(totalMinutes / 30) * 30;
       const finalHour = Math.floor(roundedMinutes / 60);
       const finalMinute = roundedMinutes % 60;
       
