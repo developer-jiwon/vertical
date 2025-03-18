@@ -250,11 +250,7 @@ export default function ListScreen() {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'all' && styles.activeFilterButton,
-            filter === 'all' && { 
-              backgroundColor: `${Colors[colorScheme || 'light'].tint}20`,
-              borderColor: Colors[colorScheme || 'light'].tint
-            }
+            filter === 'all' && styles.activeFilterButton
           ]}
           onPress={() => setFilter('all')}
         >
@@ -262,7 +258,7 @@ export default function ListScreen() {
             style={[
               styles.filterText,
               filter === 'all' && { 
-                color: Colors[colorScheme || 'light'].tint
+                color: '#FFFFFF'
               }
             ]}
           >
@@ -273,11 +269,7 @@ export default function ListScreen() {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'today' && styles.activeFilterButton,
-            filter === 'today' && { 
-              backgroundColor: `${Colors[colorScheme || 'light'].tint}20`,
-              borderColor: Colors[colorScheme || 'light'].tint
-            }
+            filter === 'today' && styles.activeFilterButton
           ]}
           onPress={() => setFilter('today')}
         >
@@ -285,7 +277,7 @@ export default function ListScreen() {
             style={[
               styles.filterText,
               filter === 'today' && { 
-                color: Colors[colorScheme || 'light'].tint
+                color: '#FFFFFF'
               }
             ]}
           >
@@ -296,11 +288,7 @@ export default function ListScreen() {
         <TouchableOpacity
           style={[
             styles.filterButton,
-            filter === 'upcoming' && styles.activeFilterButton,
-            filter === 'upcoming' && { 
-              backgroundColor: `${Colors[colorScheme || 'light'].tint}20`,
-              borderColor: Colors[colorScheme || 'light'].tint
-            }
+            filter === 'upcoming' && styles.activeFilterButton
           ]}
           onPress={() => setFilter('upcoming')}
         >
@@ -308,7 +296,7 @@ export default function ListScreen() {
             style={[
               styles.filterText,
               filter === 'upcoming' && { 
-                color: Colors[colorScheme || 'light'].tint
+                color: '#FFFFFF'
               }
             ]}
           >
@@ -365,24 +353,26 @@ const styles = StyleSheet.create({
   filterContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingVertical: 16,
     zIndex: 10,
+    justifyContent: 'center',
+    gap: 8,
   },
   filterButton: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginRight: 8,
+    paddingHorizontal: 20,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+    minWidth: 90,
+    alignItems: 'center',
   },
   activeFilterButton: {
-    borderWidth: 1,
+    backgroundColor: Colors.light.tint,
   },
   filterText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
+    color: 'rgba(0, 0, 0, 0.6)',
   },
   flatList: {
     flex: 1,
