@@ -550,7 +550,7 @@ export default function HomeScreen() {
                 onChangeText={setNewEventTitle}
                 placeholder="Appointment title"
                 placeholderTextColor="#aaa"
-                maxLength={50}
+                maxLength={40}
                 multiline={false}
                 numberOfLines={1}
               />

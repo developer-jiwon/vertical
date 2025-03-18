@@ -383,6 +383,11 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
       // Create pan responder for this appointment
       const panResponder = createPanResponder(appointment);
       
+      // Calculate how many lines the title can have based on appointment height
+      // Allow approximately 18 pixels per line (include line height and spacing)
+      const availableHeight = height - 20; // Account for padding
+      const maxLines = Math.max(Math.floor(availableHeight / 18), 1);
+      
       return (
         <Animated.View
           key={appointment.id}
@@ -406,16 +411,11 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
           >
             <ThemedText 
               style={styles.appointmentTitle}
-              numberOfLines={appointment.duration >= 60 ? (appointment.duration >= 90 ? 3 : 2) : 1}
+              numberOfLines={maxLines}
               ellipsizeMode="tail"
             >
               {appointment.title}
             </ThemedText>
-            {appointment.duration >= 30 && (
-              <ThemedText style={styles.appointmentTime}>
-                {formatTimeFromMinutes(startMinutes)} - {formatTimeFromMinutes(startMinutes + appointment.duration)}
-              </ThemedText>
-            )}
           </TouchableOpacity>
         </Animated.View>
       );
@@ -595,10 +595,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderLeftWidth: 3,
     borderLeftColor: Colors.light.tint,
-    borderRadius: 4,
-    padding: 8,
-    paddingRight: 10,
-    paddingBottom: 10,
+    borderRadius: 6,
+    padding: 10,
+    paddingVertical: 8,
     zIndex: 100,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -609,20 +608,16 @@ const styles = StyleSheet.create({
   },
   appointmentContent: {
     flex: 1,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
   appointmentTitle: {
     fontWeight: 'bold',
     fontSize: 14,
-    flexShrink: 1,
+    flexShrink: 1, 
     flexWrap: 'wrap',
-    marginBottom: 3,
     lineHeight: 18,
-  },
-  appointmentTime: {
-    fontSize: 11,
-    opacity: 0.8,
-    marginTop: 1,
+    width: '100%',
   },
 });
 
