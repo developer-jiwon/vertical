@@ -456,11 +456,12 @@ export default function HomeScreen() {
                   <TouchableOpacity 
                     style={styles.toggleButton}
                     onPress={handleToggle}
+                    activeOpacity={0.7}
                   >
                     <IconSymbol 
-                      size={20} 
+                      size={18} 
                       name={getToggleIcon()} 
-                      color={Colors[colorScheme ?? 'light'].tint} 
+                      color="#555555" 
                     />
                   </TouchableOpacity>
                 </ThemedView>
@@ -485,9 +486,9 @@ export default function HomeScreen() {
                 onPress={goToPreviousMonth}
               >
                 <IconSymbol 
-                  size={18} 
+                  size={17} 
                   name="chevron.left" 
-                  color={Colors[colorScheme ?? 'light'].tint} 
+                  color="#555555" 
                 />
               </TouchableOpacity>
               <ThemedText type="subtitle" style={styles.monthTitle}>
@@ -499,19 +500,20 @@ export default function HomeScreen() {
                   onPress={goToNextMonth}
                 >
                   <IconSymbol 
-                    size={18} 
+                    size={17} 
                     name="chevron.right" 
-                    color={Colors[colorScheme ?? 'light'].tint} 
+                    color="#555555" 
                   />
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={styles.toggleButton}
                   onPress={handleToggle}
+                  activeOpacity={0.7}
                 >
                   <IconSymbol 
-                    size={20} 
+                    size={18} 
                     name={getToggleIcon()} 
-                    color={Colors[colorScheme ?? 'light'].tint} 
+                    color="#555555" 
                   />
                 </TouchableOpacity>
               </View>
@@ -701,20 +703,25 @@ const styles = StyleSheet.create({
     fontFamily: 'Merriweather_700Bold',
   },
   spacer: {
-    width: 36, // Same width as the toggle button to ensure centering
+    width: 32, // Same width as the toggle button to ensure centering
   },
   dayScheduleContent: {
     flex: 1,
   },
   toggleButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 1,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0,
   },
   modalOverlay: {
     flex: 1,
@@ -816,8 +823,13 @@ const styles = StyleSheet.create({
   },
   monthNavButton: {
     padding: 6,
-    borderRadius: 16,
-    backgroundColor: 'transparent',
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0,
   },
   headerRightButtons: {
     flexDirection: 'row',
