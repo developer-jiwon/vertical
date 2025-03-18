@@ -398,7 +398,7 @@ const DaySchedule = forwardRef<ScrollView, DayScheduleProps>(({ selectedDate, on
               height,
               left: TIME_COLUMN_WIDTH + 10,
               right: 10,
-              backgroundColor: Colors[colorScheme ?? 'light'].tint + '80', // Add transparency
+              backgroundColor: Colors[colorScheme ?? 'light'].tint + '40', // Reduced opacity for lighter background
               transform: [{ translateX: swipeAnimValues[appointment.id] }],
             },
           ]}
@@ -618,6 +618,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     lineHeight: 18,
     width: '100%',
+    color: '#000000', // Ensure dark text for contrast
   },
 });
 

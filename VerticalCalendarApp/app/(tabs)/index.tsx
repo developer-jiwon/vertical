@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, SafeAreaView, ScrollView, Dimensions, Alert, TextInput, Modal, Platform, KeyboardAvoidingView } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, SafeAreaView, ScrollView, Dimensions, Alert, TextInput, Modal, Platform, KeyboardAvoidingView, Animated, Vibration, Text } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import MonthlyCalendar from '@/components/calendar/MonthlyCalendar';
@@ -30,6 +30,21 @@ const fontSize = {
 const padding = {
   modal: isSmallScreen ? 15 : 20,
   button: isSmallScreen ? 10 : 12
+};
+
+// Add this helper function before the HomeScreen component
+const checkForTimeConflict = (
+  startTime1: string,
+  duration1: number,
+  startTime2: string,
+  duration2: number
+): boolean => {
+  const start1 = new Date(startTime1);
+  const end1 = new Date(start1.getTime() + duration1 * 60000);
+  const start2 = new Date(startTime2);
+  const end2 = new Date(start2.getTime() + duration2 * 60000);
+
+  return start1 < end2 && start2 < end1;
 };
 
 export default function HomeScreen() {
@@ -64,7 +79,57 @@ export default function HomeScreen() {
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const dayScheduleRef = useRef<ScrollView>(null);
   const colorScheme = useColorScheme();
+  const startTimeAnimatedValue = useRef(new Animated.Value(0)).current;
+  const endTimeAnimatedValue = useRef(new Animated.Value(0)).current;
   
+  // Time slots for the custom time picker - organized by time period
+  const timeSlots = {
+    morning: ['7:00 AM', '7:30 AM', '8:00 AM', '8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM'],
+    afternoon: ['12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM'],
+    evening: ['5:00 PM', '5:30 PM', '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM', '9:00 PM', '9:30 PM', '10:00 PM', '10:30 PM', '11:00 PM', '11:30 PM']
+  };
+  
+  // Quick presets for duration
+  const durationPresets = [
+    { label: '30m', minutes: 30 },
+    { label: '1h', minutes: 60 },
+    { label: '1.5h', minutes: 90 },
+    { label: '2h', minutes: 120 }
+  ];
+  
+  // Current active time period tab
+  const [activeTimeTab, setActiveTimeTab] = useState<'morning' | 'afternoon' | 'evening'>('morning');
+  
+  // Set initial active tab based on current time
+  useEffect(() => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    if (currentHour >= 5 && currentHour < 12) {
+      setActiveTimeTab('morning');
+    } else if (currentHour >= 12 && currentHour < 17) {
+      setActiveTimeTab('afternoon');
+    } else {
+      setActiveTimeTab('evening');
+    }
+  }, []);
+  
+  // Parse time string to Date
+  const parseTimeString = (timeString: string): Date => {
+    const date = new Date();
+    const [time, period] = timeString.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+    
+    if (period === 'PM' && hours < 12) {
+      hours += 12;
+    } else if (period === 'AM' && hours === 12) {
+      hours = 0;
+    }
+    
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
   const { appointments, addAppointment, editAppointment, deleteAppointment } = useAppointments();
 
   // Handle URL parameter changes
@@ -80,11 +145,6 @@ export default function HomeScreen() {
       setSelectedMonth(newSelectedMonth);
     }
   }, [dateFromParams]);
-
-  // Log selectedMonth changes
-  useEffect(() => {
-    console.log('selectedMonth changed to:', selectedMonth);
-  }, [selectedMonth]);
 
   // Ensure we're showing the current month when the app starts
   useEffect(() => {
@@ -304,17 +364,66 @@ export default function HomeScreen() {
     setModalVisible(true);
   };
 
+  // Add animation functions
+  const animateTimeInput = (isStart: boolean) => {
+    const animValue = isStart ? startTimeAnimatedValue : endTimeAnimatedValue;
+    Animated.sequence([
+      Animated.timing(animValue, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animValue, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
   const showStartTimePicker = () => {
     setTimePickerMode('start');
     setShowTimePicker(true);
+    animateTimeInput(true);
   };
 
   const showEndTimePicker = () => {
     setTimePickerMode('end');
     setShowTimePicker(true);
+    animateTimeInput(false);
+  };
+
+  const handleTimeSelection = (timeString: string) => {
+    const selectedDate = parseTimeString(timeString);
+    
+    if (timePickerMode === 'start') {
+      // Update start time
+      setNewEventStartDate(selectedDate);
+      
+      // If end time is earlier than start time, adjust end time
+      if (selectedDate > newEventEndDate) {
+        const newEndDate = new Date(selectedDate);
+        newEndDate.setMinutes(newEndDate.getMinutes() + 60);
+        setNewEventEndDate(newEndDate);
+      }
+    } else {
+      // Update end time
+      // Ensure end time is after start time
+      if (selectedDate > newEventStartDate) {
+        setNewEventEndDate(selectedDate);
+      } else {
+        // If user tries to set end time before start time, show alert
+        Alert.alert(
+          'Invalid Time',
+          'End time must be after start time.',
+          [{ text: 'OK' }]
+        );
+      }
+    }
   };
 
   const handleTimeChange = (event: any, selectedDate?: Date) => {
+    // This is preserved for Android
     setShowTimePicker(Platform.OS === 'ios');
     
     if (selectedDate) {
@@ -355,6 +464,17 @@ export default function HomeScreen() {
     return Math.round(diffMs / 60000); // Convert ms to minutes
   };
 
+  // Apply duration preset
+  const applyDurationPreset = (minutes: number) => {
+    if (timePickerMode === 'start') {
+      const endDate = new Date(newEventStartDate);
+      endDate.setMinutes(endDate.getMinutes() + minutes);
+      setNewEventEndDate(endDate);
+      // Close the picker after setting both times
+      setShowTimePicker(false);
+    }
+  };
+
   const formatTimeOnly = (date: Date): string => {
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
@@ -370,26 +490,48 @@ export default function HomeScreen() {
     }
 
     const duration = calculateDuration();
-    
-    // Use the selectedDate for the appointment date
     const appointmentDate = selectedDate;
-    console.log('Saving appointment with date from selectedDate:', appointmentDate);
-    
-    // Get hours and minutes from the newEventStartDate
-    // This will be in the user's local timezone (works in any timezone including Korea)
     const hours = newEventStartDate.getHours();
     const minutes = newEventStartDate.getMinutes();
-    
-    // Create a time string in local time (without timezone)
-    // Format: YYYY-MM-DDTHH:MM:SS
-    // This format preserves the exact local time regardless of timezone
     const startTime = `${appointmentDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-    
-    console.log('Final startTime with correct date (local time):', startTime);
-    
-    // DO NOT change the selectedMonth when saving an event
-    // This ensures the month stays the same in the list view
-    
+
+    // Check for conflicts with existing appointments
+    const conflictingAppointment = appointments.find(appointment => {
+      // Skip checking against the appointment being edited
+      if (isEditMode && editingAppointmentId === appointment.id) {
+        return false;
+      }
+      
+      // Only check appointments on the same date
+      if (appointment.date !== appointmentDate) {
+        return false;
+      }
+
+      return checkForTimeConflict(
+        startTime,
+        duration,
+        appointment.startTime,
+        appointment.duration
+      );
+    });
+
+    if (conflictingAppointment) {
+      const conflictStart = new Date(conflictingAppointment.startTime);
+      const conflictTimeStr = conflictStart.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      Alert.alert(
+        'Time Conflict',
+        `This appointment conflicts with "${conflictingAppointment.title}" at ${conflictTimeStr}. Please choose a different time.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // If no conflicts, proceed with saving
     if (isEditMode && editingAppointmentId) {
       editAppointment(editingAppointmentId, {
         id: editingAppointmentId,
@@ -433,6 +575,20 @@ export default function HomeScreen() {
     return appointments.filter(appointment => appointment.date === selectedDate);
   };
 
+  // Add this new function before the return statement
+  const handleAppointmentDoubleTap = (date: string) => {
+    // Set the selected date
+    setSelectedDate(date);
+    
+    // Set the selected month based on the date
+    const [year, month] = date.split('-');
+    const newSelectedMonth = `${year}-${month}-01`;
+    setSelectedMonth(newSelectedMonth);
+    
+    // Switch to month view
+    setCurrentView('month');
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
       <ThemedView style={styles.container}>
@@ -449,21 +605,21 @@ export default function HomeScreen() {
             {selectedDate && (
               <View style={styles.dayScheduleWrapper}>
                 <ThemedView style={styles.dayScheduleHeader}>
-                  <View style={styles.spacer} />
+                  <TouchableOpacity 
+                    style={styles.viewToggleButton}
+                    onPress={handleToggle}
+                  >
+                    <ThemedText style={styles.viewToggleText}>List</ThemedText>
+                    <IconSymbol 
+                      size={15} 
+                      name="list.bullet" 
+                      color={Colors.light.tint} 
+                    />
+                  </TouchableOpacity>
                   <ThemedText type="subtitle" style={styles.dateHeaderText}>
                     {formatSelectedDate(selectedDate)}
                   </ThemedText>
-                  <TouchableOpacity 
-                    style={styles.toggleButton}
-                    onPress={handleToggle}
-                    activeOpacity={0.7}
-                  >
-                    <IconSymbol 
-                      size={18} 
-                      name={getToggleIcon()} 
-                      color="#555555" 
-                    />
-                  </TouchableOpacity>
+                  <View style={styles.spacer} />
                 </ThemedView>
                 <ThemedView style={styles.dayScheduleContent}>
                   <DaySchedule
@@ -506,25 +662,23 @@ export default function HomeScreen() {
                   />
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={styles.toggleButton}
+                  style={styles.viewToggleButton}
                   onPress={handleToggle}
-                  activeOpacity={0.7}
                 >
+                  <ThemedText style={styles.viewToggleText}>Calendar</ThemedText>
                   <IconSymbol 
-                    size={18} 
-                    name={getToggleIcon()} 
-                    color="#555555" 
+                    size={15} 
+                    name="calendar" 
+                    color={Colors.light.tint} 
                   />
                 </TouchableOpacity>
               </View>
             </ThemedView>
-            <ThemedText style={{display: 'none'}}>
-              {`Debug: selectedMonth=${selectedMonth}`}
-            </ThemedText>
             <DayList
               selectedMonth={selectedMonth}
               onDayPress={handleDayPress}
               selectedDate={selectedDate}
+              onAppointmentDoubleTap={handleAppointmentDoubleTap}
             />
           </ThemedView>
         )}
@@ -540,7 +694,14 @@ export default function HomeScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
           >
-            <ThemedView style={styles.modalContent}>
+            <ThemedView style={[
+              styles.modalContent,
+              {
+                maxHeight: Platform.OS === 'ios' 
+                  ? height * (showTimePicker ? 0.7 : 0.6) 
+                  : height * 0.65
+              }
+            ]}>
               <ThemedText style={styles.modalTitle}>
                 {isEditMode ? 'Edit' : 'New'} Appointment
               </ThemedText>
@@ -548,48 +709,145 @@ export default function HomeScreen() {
                 style={styles.modalInput}
                 value={newEventTitle}
                 onChangeText={setNewEventTitle}
-                placeholder="Appointment title"
-                placeholderTextColor="#aaa"
+                placeholder="Add a title"
+                placeholderTextColor="#bbbbbb"
                 maxLength={40}
                 multiline={false}
                 numberOfLines={1}
               />
               
               <View style={styles.timeSection}>
-                <View style={styles.timeColumn}>
+                <Animated.View style={[
+                  styles.timeColumn,
+                  {
+                    transform: [{
+                      scale: startTimeAnimatedValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.05]
+                      })
+                    }]
+                  }
+                ]}>
                   <ThemedText style={styles.timeLabel}>Start</ThemedText>
                   <TouchableOpacity
-                    style={styles.timePickerButton}
+                    style={[
+                      styles.timePickerButton,
+                      timePickerMode === 'start' && showTimePicker && styles.activeTimePickerButton
+                    ]}
                     onPress={showStartTimePicker}
                   >
                     <ThemedText style={styles.timeText}>
                       {formatTimeOnly(newEventStartDate)}
                     </ThemedText>
                   </TouchableOpacity>
-                </View>
-                <View style={styles.timeColumn}>
+                </Animated.View>
+                <Animated.View style={[
+                  styles.timeColumn,
+                  {
+                    transform: [{
+                      scale: endTimeAnimatedValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.05]
+                      })
+                    }]
+                  }
+                ]}>
                   <ThemedText style={styles.timeLabel}>End</ThemedText>
                   <TouchableOpacity
-                    style={styles.timePickerButton}
+                    style={[
+                      styles.timePickerButton,
+                      timePickerMode === 'end' && showTimePicker && styles.activeTimePickerButton
+                    ]}
                     onPress={showEndTimePicker}
                   >
                     <ThemedText style={styles.timeText}>
                       {formatTimeOnly(newEventEndDate)}
                     </ThemedText>
                   </TouchableOpacity>
-                </View>
+                </Animated.View>
               </View>
               
               {showTimePicker && Platform.OS === 'ios' && (
-                <DateTimePicker
-                  value={timePickerMode === 'start' ? newEventStartDate : newEventEndDate}
-                  mode="time"
-                  is24Hour={false}
-                  display="spinner"
-                  onChange={handleTimeChange}
-                  minuteInterval={30}
-                  style={styles.datePicker}
-                />
+                <View style={styles.customTimePickerContainer}>
+                  {/* Time period tabs */}
+                  <View style={styles.timePeriodTabs}>
+                    {Object.keys(timeSlots).map((period) => (
+                      <TouchableOpacity
+                        key={period}
+                        style={[
+                          styles.timePeriodTab,
+                          activeTimeTab === period && styles.activeTimePeriodTab
+                        ]}
+                        onPress={() => setActiveTimeTab(period as 'morning' | 'afternoon' | 'evening')}
+                      >
+                        <ThemedText 
+                          style={[
+                            styles.timePeriodTabText,
+                            activeTimeTab === period && styles.activeTimePeriodTabText
+                          ]}
+                        >
+                          {period.charAt(0).toUpperCase() + period.slice(1)}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  
+                  <ScrollView 
+                    style={styles.timeSlotScrollView}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <View style={styles.timeSlotContainer}>
+                      {timeSlots[activeTimeTab].map((timeSlot, index) => {
+                        const timeDate = parseTimeString(timeSlot);
+                        const isSelected = timePickerMode === 'start' 
+                          ? formatTimeOnly(timeDate) === formatTimeOnly(newEventStartDate)
+                          : formatTimeOnly(timeDate) === formatTimeOnly(newEventEndDate);
+                        
+                        return (
+                          <TouchableOpacity
+                            key={index}
+                            style={[
+                              styles.timeSlotButton,
+                              isSelected && styles.selectedTimeSlot
+                            ]}
+                            onPress={() => handleTimeSelection(timeSlot)}
+                          >
+                            <ThemedText 
+                              style={[
+                                styles.timeSlotText,
+                                isSelected && styles.selectedTimeSlotText
+                              ]}
+                            >
+                              {timeSlot}
+                            </ThemedText>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                  
+                  {/* Quick duration presets (only show when selecting start time) */}
+                  {timePickerMode === 'start' && (
+                    <View style={styles.durationPresetContainer}>
+                      <ThemedText style={styles.durationPresetLabel}>
+                        Quick Duration:
+                      </ThemedText>
+                      <View style={styles.durationPresetButtons}>
+                        {durationPresets.map((preset, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            style={styles.durationPresetButton}
+                            onPress={() => applyDurationPreset(preset.minutes)}
+                          >
+                            <ThemedText style={styles.durationPresetText}>
+                              {preset.label}
+                            </ThemedText>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
               )}
               
               {showTimePicker && Platform.OS === 'android' && (
@@ -639,7 +897,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   stickyCalendarContainer: {
-    maxHeight: height * 0.35, // 35% of screen height
+    maxHeight: height * 0.35,
     zIndex: 10,
     backgroundColor: Colors.light.background,
     shadowColor: '#000',
@@ -696,7 +954,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Merriweather_700Bold',
   },
   spacer: {
-    width: 32, // Same width as the toggle button to ensure centering
+    width: 80, // Match the width of the toggle button for centering
   },
   dayScheduleContent: {
     flex: 1,
@@ -720,84 +978,197 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    paddingBottom: Platform.OS === 'ios' ? 40 : 0, // Add padding for iOS keyboard
   },
   modalContent: {
     width: modalWidth,
-    maxHeight: height * 0.7,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowRadius: 16,
+    elevation: 6,
   },
   modalTitle: {
-    fontSize: 22,
-    marginBottom: 24,
+    fontSize: 15, // Slightly smaller
+    marginBottom: 12, // Reduce margin
     textAlign: 'center',
     fontFamily: 'Merriweather_700Bold',
+    color: Colors.light.tint,
+    letterSpacing: 0.3,
   },
   modalInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 20,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    borderRadius: 0,
+    padding: 6, // Reduce padding
+    paddingBottom: 6,
+    fontSize: 13,
+    marginBottom: 16, // Reduce margin
     fontFamily: 'Merriweather_400Regular',
+    backgroundColor: 'transparent',
   },
   timeSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 30,
+    marginBottom: 16, // Reduce margin
   },
   timeColumn: {
     width: '48%',
   },
   timePickerButton: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    borderRadius: 0,
+    padding: 8,
+    paddingBottom: 8,
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   timeLabel: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 11,
+    color: Colors.light.tint,
     marginBottom: 4,
-    fontWeight: '600',
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   timeText: {
-    fontSize: 18,
-    color: '#000',
+    fontSize: 13,
+    color: '#333333',
+    fontWeight: '400',
+  },
+  customTimePickerContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    marginBottom: 12,
+    width: '100%',
+    maxHeight: 280,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  timePeriodTabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
+  },
+  timePeriodTab: {
+    flex: 1,
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeTimePeriodTab: {
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.light.tint,
+  },
+  timePeriodTabText: {
+    fontSize: 13,
+    color: '#888',
+  },
+  activeTimePeriodTabText: {
+    fontWeight: '600',
+    color: Colors.light.tint,
+  },
+  timeSlotScrollView: {
+    maxHeight: 120, // Reduce height
+  },
+  timeSlotContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 8,
+  },
+  timeSlotButton: {
+    width: '32%',
+    padding: 8, // Reduce padding
+    marginBottom: 6, // Reduce margin
+    marginHorizontal: '0.66%',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f8f8',
+    minHeight: 38, // Reduce height
+  },
+  selectedTimeSlot: {
+    backgroundColor: Colors.light.tint,
+  },
+  timeSlotText: {
+    fontSize: 13,
+    color: '#444',
+    textAlign: 'center',
+  },
+  selectedTimeSlotText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  durationPresetContainer: {
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
+  },
+  durationPresetLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
     fontWeight: '500',
   },
-  datePicker: {
-    height: 180,
-    marginBottom: 20,
+  durationPresetButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  durationPresetButton: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    minWidth: 55,
+    alignItems: 'center',
+  },
+  durationPresetText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#555',
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: 6, // Reduce margin
   },
   modalButton: {
-    padding: 14,
-    borderRadius: 8,
+    padding: 10, // Reduce padding
+    borderRadius: 16,
     flex: 0.48,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cancelButton: {
-    backgroundColor: '#f2f2f2',
+    backgroundColor: '#f5f5f5',
   },
   saveButton: {
     backgroundColor: Colors.light.tint,
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   monthNavButton: {
     padding: 6,
@@ -812,6 +1183,25 @@ const styles = StyleSheet.create({
   headerRightButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
+  },
+  activeTimePickerButton: {
+    borderBottomColor: Colors.light.tint,
+    borderBottomWidth: 2,
+  },
+  viewToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  viewToggleText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.light.tint,
+    marginRight: 4,
   },
 });

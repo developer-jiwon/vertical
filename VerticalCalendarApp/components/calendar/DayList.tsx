@@ -10,12 +10,14 @@ interface DayListProps {
   selectedMonth: string;
   onDayPress: (date: string) => void;
   selectedDate?: string;
+  onAppointmentDoubleTap?: (date: string) => void;
 }
 
-const DayList: React.FC<DayListProps> = ({ selectedMonth, onDayPress, selectedDate }) => {
+const DayList: React.FC<DayListProps> = ({ selectedMonth, onDayPress, selectedDate, onAppointmentDoubleTap }) => {
   const colorScheme = useColorScheme();
   const { appointments } = useAppointments();
   const animatedValues = useRef<{ [key: string]: Animated.Value }>({}).current;
+  const lastTapRef = useRef<{ [key: string]: number }>({});
   
   // Debug the selected month
   console.log('DayList rendering with selectedMonth:', selectedMonth);
@@ -181,7 +183,24 @@ const DayList: React.FC<DayListProps> = ({ selectedMonth, onDayPress, selectedDa
                 {dayHasAppointments && (
                   <View style={styles.appointmentsContainer}>
                     {dayAppointments.slice(0, 3).map((appointment) => (
-                      <View key={appointment.id} style={styles.appointmentItem}>
+                      <TouchableOpacity
+                        key={appointment.id}
+                        style={styles.appointmentItem}
+                        onPress={() => {
+                          const now = Date.now();
+                          const lastTap = lastTapRef.current[appointment.id];
+                          const DOUBLE_TAP_DELAY = 300;
+                          
+                          if (lastTap && (now - lastTap) < DOUBLE_TAP_DELAY) {
+                            // Double tap detected
+                            onAppointmentDoubleTap?.(date);
+                            lastTapRef.current[appointment.id] = 0; // Reset
+                          } else {
+                            // First tap
+                            lastTapRef.current[appointment.id] = now;
+                          }
+                        }}
+                      >
                         <View 
                           style={[
                             styles.appointmentDot, 
@@ -198,7 +217,7 @@ const DayList: React.FC<DayListProps> = ({ selectedMonth, onDayPress, selectedDa
                         >
                           {appointment.title}
                         </ThemedText>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                     
                     {dayAppointments.length > 3 && (
