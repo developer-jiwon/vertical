@@ -20,6 +20,10 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppointments, Appointment } from '@/hooks/useAppointments';
 import { router } from 'expo-router';
 import Checkbox from 'expo-checkbox';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Key for storing checked items in AsyncStorage
+const CHECKED_ITEMS_STORAGE_KEY = 'verticalCalendar_checkedItems';
 
 export default function ListScreen() {
   const colorScheme = useColorScheme();
@@ -33,6 +37,35 @@ export default function ListScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const secondRotateAnim = useRef(new Animated.Value(0)).current;
   
+  // Load checked items from AsyncStorage on component mount
+  useEffect(() => {
+    const loadCheckedItems = async () => {
+      try {
+        const savedItems = await AsyncStorage.getItem(CHECKED_ITEMS_STORAGE_KEY);
+        if (savedItems) {
+          setCheckedItems(JSON.parse(savedItems));
+        }
+      } catch (error) {
+        console.error('Error loading checked items from AsyncStorage:', error);
+      }
+    };
+
+    loadCheckedItems();
+  }, []);
+
+  // Save checked items to AsyncStorage whenever they change
+  useEffect(() => {
+    const saveCheckedItems = async () => {
+      try {
+        await AsyncStorage.setItem(CHECKED_ITEMS_STORAGE_KEY, JSON.stringify(checkedItems));
+      } catch (error) {
+        console.error('Error saving checked items to AsyncStorage:', error);
+      }
+    };
+
+    saveCheckedItems();
+  }, [checkedItems]);
+
   // Start animations
   useEffect(() => {
     // Create and start rotation animations with clear start/stop management
@@ -230,15 +263,18 @@ export default function ListScreen() {
     );
   };
 
-  // Toggle checkbox with haptic feedback
+  // Toggle checkbox with haptic feedback and save to AsyncStorage
   const toggleCheckbox = (id: string) => {
     if (Platform.OS === 'ios') {
       Vibration.vibrate([0, 50]);
     }
-    setCheckedItems(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+    setCheckedItems(prev => {
+      const newItems = {
+        ...prev,
+        [id]: !prev[id]
+      };
+      return newItems;
+    });
   };
 
   // Render section header
