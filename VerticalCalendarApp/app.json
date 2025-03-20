@@ -15,10 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.wonnie.verticalcalendar",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "bundleIdentifier": "com.wonnie.verticalcalendar"
     },
     "android": {
       "adaptiveIcon": {
@@ -45,14 +42,6 @@
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
-    "extra": {
-      "router": {
-        "origin": false
-      },
-      "eas": {
-        "projectId": "bc70b7cb-a264-472e-8751-9dca5c1dae77"
-      }
-    },
-    "owner": "wonnie"
+    "sdkVersion": "52.0.0"
   }
 }
