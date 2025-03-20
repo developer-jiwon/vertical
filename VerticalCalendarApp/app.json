@@ -1,26 +1,31 @@
 {
   "expo": {
-    "name": "VerticalCalendarApp",
-    "slug": "VerticalCalendarApp",
+    "name": "Vertical Calendar",
+    "slug": "vertical-calendar-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "verticalcalendar",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#f8f9fa",
+      "backgroundColor": "#D6E2E0",
       "resizeMode": "contain",
-      "image": "./assets/images/icon.png"
+      "image": "./assets/images/custom/splash.png"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wonnie.verticalcalendar",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#D6E2E0"
-      }
+      },
+      "package": "com.wonnie.verticalcalendar"
     },
     "web": {
       "bundler": "metro",
@@ -41,9 +46,13 @@
       "policy": "sdkVersion"
     },
     "extra": {
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "vertical-calendar"
+        "projectId": "bc70b7cb-a264-472e-8751-9dca5c1dae77"
       }
-    }
+    },
+    "owner": "wonnie"
   }
 }
